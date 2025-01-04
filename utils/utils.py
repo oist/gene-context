@@ -23,7 +23,6 @@ def read_xy_data(data_filename, y_filename):
     target_column = "oxytolerance"
     # Read y
     y0 = pl.read_csv(y_filename, separator="\t")
-    print(f"y name = {y_filename}")
     y1 = y0.unique() # There are some duplicates in the cyanos, so dedup
     logging.info("Read y: %s", y1.shape)
     # Log counts of each class

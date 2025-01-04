@@ -1,58 +1,21 @@
-import numpy as np
-import logging
+import os
 import time
-from tqdm import tqdm
+import numpy as np
+import pandas as pd
 
 from sklearn.model_selection import GroupKFold
-import os
+from sklearn.metrics import accuracy_score
 
-import polars as pl
-import logging 
 import torch
-
-import pandas as pd
-import matplotlib.pyplot as plt
-
-import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+import torch.optim as optim
 
-from modules import *
-from models import SetTransformer 
-from mixture_of_mvns import MixtureOfMVNs
-from mvn_diag import MultivariateNormalDiag
-
-from sklearn.preprocessing import MaxAbsScaler
-
-from utils import read_xy_data
-
-num_inds = 2#32
-num_epochs = 3
-lr = 1e-5
-
-class SetTransformer(nn.Module):
-    def __init__(self, dim_input, num_outputs, dim_output,
-            num_inds=num_inds, dim_hidden=64, num_heads=4, ln=True):  #num_inds is the number of inducing points m
-        super(SetTransformer, self).__init__()
-        self.enc = nn.Sequential(
-                ISAB(dim_input, dim_hidden, num_heads, num_inds, ln=ln),
-                ISAB(dim_hidden, dim_hidden, num_heads, num_inds, ln=ln),
-                nn.Dropout(0.3))
-        self.dec = nn.Sequential(
-                PMA(dim_hidden, num_heads, num_outputs, ln=ln),
-                SAB(dim_hidden, dim_hidden, num_heads, ln=ln),
-               # SAB(dim_hidden, dim_hidden, num_heads, ln=ln),
-                nn.Dropout(0.3),
-                nn.Linear(dim_hidden, dim_output))
-
-    def forward(self, X):
-
-        return self.dec(self.enc(X))    
+from set_transformer.set_transformer_architecture import SetTransformer
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")        
-
-# # Input data files
+K = 1#2#10   # number of embeddings 
+dim_output = 1#2# K  # i.e. probabil of belonging to each cluster
+#net = SetTransformer(D, K, dim_output)#.cuda() #  dim_input, num_outputs, dim_output, num_inds=32, dim_hidden=128, num_heads=4, ln=False
 
 
 # Directory to save 
@@ -61,98 +24,42 @@ save_dir = os.path.join('results', 'SetTransformer', run_name)
 if not os.path.isdir(save_dir):
     os.makedirs(save_dir)
 
+
+
 save_results_dir  = os.path.join('results', 'SetTransformer', 'accuracy_results')
 if not os.path.isdir(save_results_dir):
     os.makedirs(save_results_dir)
 
-############### Train SetTransformer ###############
 
 
-data_filename_train = 'data/all_gene_annotations.added_incompleteness_and_contamination.subsampled.training.tsv'
-data_filename_test = "data/all_gene_annotations.added_incompleteness_and_contamination.subsampled.testing.tsv"
-y_filename = "data/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv"
-d3_train, X_train, y_train = read_xy_data(data_filename_train, y_filename)
-groups = d3_train['family'].to_list()
-d_gtdb_train = d3_train.to_pandas()
-
-matrix = X_train.values
-
-
-X_data = torch.tensor(matrix)
-X_train = X_data.float().to(device)
-
-X_train_numpy = X_train.cpu().numpy()
-scaler = MaxAbsScaler()
-X_train_scaled = scaler.fit_transform(X_train_numpy)
-
-X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
-
-y_train = torch.tensor(y_train.values).to(device)
-y_train = y_train.squeeze(1)
-y_train = y_train.float()
-
-print(f"X_train shape = {X_train.shape}")
-print(f"y_train shape = {y_train.shape}")
-
-
-d3_test, X_test, y_test = read_xy_data(data_filename_test, y_filename)
-d_gtdb_test = d3_test.to_pandas()
-
-matrix = X_test.values
-X_data_test = torch.tensor(matrix)
-X_test = X_data_test.float().to(device)
-
-X_test_numpy = X_test.cpu().numpy()
-scaler = MaxAbsScaler()
-X_test_scaled = scaler.fit_transform(X_test_numpy)
-
-X_test = torch.tensor(X_test_scaled, dtype=torch.float32).to(device)
-
-
-y_test = torch.tensor(y_test.values).to(device)
-y_test = y_test.squeeze(1)
-y_test = y_test.float()
-
-
-# 2. Set the model
-
-
-batch_size = 32
-#lr = 1e-3
 test_freq = 0.1     
 save_freq = 0.1 
-D = X_train.shape[1] # 2677#15696#50  # Example input dimension (features per sample)
-K = 1#2#10   # number of embeddings 
-dim_output = 1#2# K  # i.e. probabil of belonging to each cluster
-net = SetTransformer(D, K, dim_output).cuda() #  dim_input, num_outputs, dim_output, num_inds=32, dim_hidden=128, num_heads=4, ln=False
-
-result_filename = f"model_accuracy_SetTransformer_NumEp_{num_epochs}_InsPoin_{num_inds}_LearRate_{lr}.txt"
-
-
 
 # 4. Training
-def train():
+def train(X_train, y_train, Parameters):
 
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(run_name)
-    logger.addHandler(logging.FileHandler(
-        os.path.join(save_dir,
-            'train_'+time.strftime('%Y%m%d-%H%M')+'.log'),
-        mode='w'))
+    # logging.basicConfig(level=logging.INFO)
+    # logger = logging.getLogger(run_name)
+    # logger.addHandler(logging.FileHandler(
+    #     os.path.join(save_dir,
+    #         'train_'+time.strftime('%Y%m%d-%H%M')+'.log'),
+    #     mode='w'))
     #logger.info(str(args) + '\n')
 
     dataset = TensorDataset(X_train, y_train)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    dataloader = DataLoader(dataset, batch_size=Parameters.batch_size, shuffle=True, drop_last=True)
 
-    net = SetTransformer(D, K, dim_output).cuda()
+    D = X_train.shape[1] # 2677#15696#50  # Example input dimension (features per sample)
+
+    net = SetTransformer(D, K, dim_output)#.cuda()
    
-    optimizer = optim.AdamW(net.parameters(), lr=lr, weight_decay=0.01)#optim.Adam(net.parameters(), lr=lr)
+    optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)#optim.Adam(net.parameters(), lr=lr)
     loss_function = torch.nn.BCEWithLogitsLoss() #torch.nn.CrossEntropyLoss()  # Example for classification
 
     tick = time.time()
-    for epoch in range(num_epochs):  #for t in range(1, num_steps+1): # num
+    for epoch in range(Parameters.num_epochs):  #for t in range(1, num_steps+1): # num
 
-        if epoch == int(0.5*num_epochs):
+        if epoch == int(0.5*Parameters.num_epochs):
             optimizer.param_groups[0]['lr'] *= 0.1
         net.train()
         epoch_loss = 0
@@ -183,7 +90,7 @@ def train():
            # line += test(bench, verbose=False)
             line += ' ({:.3f} secs)'.format(time.time()-tick)
             tick = time.time()
-            logger.info(line)
+           # logger.info(line)
 
         if epoch % save_freq == 0:
             torch.save({'state_dict':net.state_dict()},
@@ -198,11 +105,17 @@ def train():
 
 
 
-def train_cross_valid():
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device):
     num_folds = 5
     group_kfold = GroupKFold(n_splits=num_folds)   
+    groups = d_gtdb_train['family'].to_list()# d3_train['family'].to_list()
 
-    net = SetTransformer(D, K, dim_output).cuda()
+    D = X_train.shape[1]
+
+    net = SetTransformer(D, K, dim_output)#.cuda()
     num_params = count_parameters(net)
     print(f"The model has {num_params:,} trainable parameters.")
 
@@ -214,12 +127,7 @@ def train_cross_valid():
         print(f"\nFold {fold+1}/{num_folds}")
         print("-" * 30)
 
-        # # Split the data into training and testing subsets
-        # train_data = torch.tensor(X_train[train_idx], dtype=torch.float32).to(device)
-        # train_labels = torch.tensor(y_train[train_idx], dtype=torch.long).to(device)
-        # test_data = torch.tensor(X_train[test_idx], dtype=torch.float32).to(device)
-        # test_labels = torch.tensor(y_train[test_idx], dtype=torch.long).to(device)
-
+        # Split the data into training and testing subsets
         train_data = X_train[train_idx].clone().detach().to(torch.float32).to(device)
         train_labels = y_train[train_idx].clone().detach().to(torch.long).to(device)
         test_data = X_train[test_idx].clone().detach().to(torch.float32).to(device)
@@ -228,15 +136,16 @@ def train_cross_valid():
 
         # Create DataLoader for mini-batch training
         train_dataset = torch.utils.data.TensorDataset(train_data, train_labels)
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True) #True
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=Parameters.batch_size, shuffle=True) #True
 
-        net = SetTransformer(D, K, dim_output).cuda()
-        optimizer = optim.AdamW(net.parameters(), lr=lr, weight_decay=0.01)
+
+        net = SetTransformer(D, K, dim_output)#.cuda()
+        optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)
         criterion = torch.nn.BCEWithLogitsLoss() #torch.nn.CrossEntropyLoss()  # Example for classification
 
         # Training loop
         net.train()
-        for epoch in range(num_epochs):
+        for epoch in range(Parameters.num_epochs):
             epoch_loss = 0.0
             for batch_data, batch_labels in train_loader:
                 optimizer.zero_grad()
@@ -252,12 +161,12 @@ def train_cross_valid():
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
-            print(f"Fold {fold + 1} | Epoch {epoch + 1}/{num_epochs} | Loss: {epoch_loss / len(train_loader):.4f}")
+            print(f"Fold {fold + 1} | Epoch {epoch + 1}/{Parameters.num_epochs} | Loss: {epoch_loss / len(train_loader):.4f}")
 
         
 
 
-        from sklearn.metrics import accuracy_score
+        
         net.eval()
         with torch.no_grad():
             test_data = test_data.unsqueeze(1)
@@ -281,7 +190,7 @@ def train_cross_valid():
             df1['predictor'] = "SetTransformer"
 
             model_name =  "SetTransformer"
-            csv_filename = f"resuls_SetTransformer/prediction_probabilities_cross_valid_fold_{fold}_{model_name}_indPoints_{num_inds}.csv"
+            csv_filename = f"set_transformer/resuls_SetTransformer/prediction_probabilities_cross_valid_fold_{fold}_{model_name}_indPoints_{Parameters.num_inds}.csv"
             df1.to_csv(csv_filename, index=False, sep="\t", header=True)
 
 
@@ -289,7 +198,10 @@ def train_cross_valid():
         
         fold_accuracy.append(test_accuracy)
     print(f"Overall cross-validation accuracy over all folds: {fold_accuracy}")
-    print(f"Mean cross-validation accuracy = {np.mean(fold_accuracy)}")    
+    print(f"Mean cross-validation accuracy = {np.mean(fold_accuracy)}") 
+
+    result_filename = f"model_accuracy_SetTransformer_NumEp_{Parameters.num_epochs}_InsPoin_{Parameters.num_inds}_LearRate_{Parameters.learning_rate}.txt"
+   
 
     with open(os.path.join(save_results_dir, result_filename), 'w') as file:
         file.write(f"Cross-Validation Accuracy = {fold_accuracy}\n")  
@@ -297,7 +209,7 @@ def train_cross_valid():
 
 
 
-def test(net):
+def test(net, X_test, y_test, d_gtdb_test, Parameters, device):
     """
     Test the model's performance on a test dataset.
     
@@ -315,7 +227,7 @@ def test(net):
     total_samples = 0
 
     test_dataset = TensorDataset(X_test, y_test)  # Prepare test data
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=Parameters.batch_size, shuffle=True)
 
     loss_function = torch.nn.BCEWithLogitsLoss()
 
@@ -368,37 +280,16 @@ def test(net):
 
     model_name =  "SetTransformer"
 
-    csv_filename = f"resuls_SetTransformer/prediction_probabilities_holdout_test_{model_name}_indPoints_{num_inds}.csv"
+    csv_filename = f"set_transformer/resuls_SetTransformer/prediction_probabilities_holdout_test_{model_name}_indPoints_{Parameters.num_inds}.csv"
     df2.to_csv(csv_filename, index=False, sep="\t", header=True)
 
     avg_loss = total_loss / len(test_loader)
     accuracy = correct_predictions / total_samples
 
+    result_filename = f"model_accuracy_SetTransformer_NumEp_{Parameters.num_epochs}_InsPoin_{Parameters.num_inds}_LearRate_{Parameters.learning_rate}.txt"
+
+
     with open(os.path.join(save_results_dir, result_filename), 'a') as file:
         file.write(f"Test Data Accuracy = {accuracy}\n")  
 
     return avg_loss, accuracy
-
-
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-
-if __name__ == '__main__':
-
-    print("Training the model...")
-    # Cross-validation
-    train_cross_valid()
-
-    # Training
-    net = train()
-
-    # Evaluate the model on the test dataset
-    test_loss, test_accuracy = test(net)
-    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
- 
- 
- 
-
-
-
