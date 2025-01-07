@@ -1,7 +1,10 @@
+import numpy as np 
+
 import argparse
 from collections import namedtuple
 
 import torch
+import pandas as pd
 from sklearn.preprocessing import MaxAbsScaler
 
 from utils.utils import read_xy_data
@@ -19,14 +22,11 @@ def process_dataset(X_filename, y_filename):
     X_train = X_train.drop(columns=["phylum_right", "class_right", "order_right", "family_right", "genus_right"])
 
     matrix = X_train.values
-
     X_data = torch.tensor(matrix)
     X_train = X_data.float().to(device)
-
     X_train_numpy = X_train.cpu().numpy()
     scaler = MaxAbsScaler()
     X_train_scaled = scaler.fit_transform(X_train_numpy)
-
     X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
 
     y_train = torch.tensor(y_train.values).to(device)
@@ -55,29 +55,113 @@ def process_args():
     Parameters = namedtuple("Parameters", ["num_inds", "learning_rate", "num_epochs", "batch_size", "data_filename_train", "data_filename_test", "y_filename"])
     return Parameters(num_inds=args.num_inds, learning_rate=args.learning_rate, num_epochs=args.num_epochs, batch_size=args.batch_size, data_filename_train = args.data_filename_train, data_filename_test=args.data_filename_test, y_filename=args.y_filename)
     
+def read_ogt_data():
+
+    filename = "data_ogt/kegg.csv"
+    df_keggs = pd.read_csv(filename,sep=",")
+    # Replace empty or NaN cells with 0
+    df_keggs.fillna(0, inplace=True)
+
+    filename_labels = "data_ogt/ogt_splits.csv"
+    df_labels = pd.read_csv(filename_labels, sep=",")
+
+    df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
+
+    # Split the table based on "ogt_split" values
+    df_train = df_merged.loc[df_merged['ogt_split'] == 'train']
+    df_test = df_merged.loc[df_merged['ogt_split'] == 'test']
+
+    y_total_unique = []
+
+    # Y train
+    y_train = pd.DataFrame(df_train)
+    y_train = y_train[['min']]
+    
+    print(f"uniq in train  = {np.unique(y_train.values)}; len = {len(np.unique(y_train.values))}")
+    y_total_unique +=  list(np.unique(y_train.values))
+    y_train = torch.tensor(y_train.values).to(device)
+    y_train = y_train.squeeze(1)
+    y_train = y_train.float()
+
+    # X train
+    X_train = df_train.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
+    matrix = X_train.values
+    X_data = torch.tensor(matrix)
+    X_train = X_data.float().to(device)
+    X_train_numpy = X_train.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_train_scaled = scaler.fit_transform(X_train_numpy)
+    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
+
+    # Y test
+    y_test = pd.DataFrame(df_test)
+    y_test  = y_test[['min']]
+    print(f"uniq in test  = {np.unique(y_test.values)}; len = {len(np.unique(y_test.values))}")
+    y_total_unique += list(np.unique(y_test.values))
+    y_test  = torch.tensor(y_test.values).to(device)
+    y_test  = y_test .squeeze(1)
+    y_test  = y_test.float()
+    print(f"y = {y_test.shape}")
+    
+    # X test
+    X_test = df_test.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
+    matrix = X_test.values
+    X_data = torch.tensor(matrix)
+    X_test = X_data.float().to(device)
+    X_test_numpy = X_test.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_test_scaled = scaler.fit_transform(X_test_numpy)
+    X_test = torch.tensor(X_test_scaled, dtype=torch.float32).to(device)
+
+    # Convert to 0-N categories
+    y_total_unique = list(np.unique(y_total_unique))
+    num_classes = len(y_total_unique)
+    print(f"y_total_unique  ={y_total_unique}; len= {num_classes}")
+
+    y_train = [y_total_unique.index(yi) for yi in y_train]
+    y_test = [y_total_unique.index(yi) for yi in y_test]
+    y_test  = torch.tensor(y_test).to(device)
+   # y_test  = y_test.squeeze(1)
+    y_test  = y_test.float()
+
+    y_train  = torch.tensor(y_train).to(device)
+   # y_train  = y_train.squeeze(1)
+    y_train  = y_train.float()
+    print(f"y_test new = {y_test}")
+    
+
+    return X_train, y_train, X_test, y_test, num_classes
 
 if __name__ == '__main__':
 
     # 1. Process input parameters
     Parameters = process_args()
 
+    phenotype = "ogt" # "aerob"
+
     # 2. Process train and test datasets
-    print(f"Processing train dataset at {Parameters.data_filename_train}...")
-    X_train, y_train, d_gtdb_train = process_dataset(Parameters.data_filename_train, Parameters.y_filename)
-    print(f"Processing test dataset at {Parameters.data_filename_test}...")
-    X_test, y_test, d_gtdb_test = process_dataset(Parameters.data_filename_test, Parameters.y_filename)
+
+    if phenotype == "ogt":
+        X_train, y_train, X_test, y_test, num_classes = read_ogt_data()
+        d_gtdb_train = None
+        d_gtdb_test = None
+    elif phenotype == "aerob":
+        print(f"Processing train dataset at {Parameters.data_filename_train}...")
+        X_train, y_train, d_gtdb_train = process_dataset(Parameters.data_filename_train, Parameters.y_filename)
+        print(f"Processing test dataset at {Parameters.data_filename_test}...")
+        X_test, y_test, d_gtdb_test = process_dataset(Parameters.data_filename_test, Parameters.y_filename)
 
     # 3. Run cross-validation on the train dataset
     print(f"Running cross-validation on the train dataset...")
-    cross_validation(X_train, y_train, d_gtdb_train, Parameters, device)
+    cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, phenotype, num_classes)
 
     # 4. Train the model on the train dataset
     print(f"Training the model on the train dataset...")
-    net = train(X_train, y_train, Parameters, device)
+    net = train(X_train, y_train, Parameters, phenotype, num_classes)
 
     # 5. Test the trained model on the test dataset
     print(f"Testing the model on the test dataset...")
-    test_loss, test_accuracy = test(net, X_test, y_test, d_gtdb_test, Parameters)
+    test_loss, test_accuracy = test(net, X_test, y_test, d_gtdb_test, Parameters, device, phenotype)
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
  
  
