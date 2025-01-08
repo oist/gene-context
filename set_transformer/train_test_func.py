@@ -31,7 +31,7 @@ save_results_dir  = os.path.join('results', 'SetTransformer', 'accuracy_results'
 if not os.path.isdir(save_results_dir):
     os.makedirs(save_results_dir)
 
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")    
 
 test_freq = 0.1     
 save_freq = 0.1 
@@ -52,6 +52,7 @@ def train(X_train, y_train, Parameters, phenotype, num_classes):
     D = X_train.shape[1] # 2677#15696#50  # Example input dimension (features per sample)
 
     net = SetTransformer(D, K, dim_output)#.cuda()
+    net = net.to(device)
    
     optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)#optim.Adam(net.parameters(), lr=lr)
     
@@ -101,8 +102,6 @@ def train(X_train, y_train, Parameters, phenotype, num_classes):
     torch.save({'state_dict':net.state_dict()},
         os.path.join(save_dir, 'model.tar'))
     
-
-
     return net
 
 
@@ -129,6 +128,7 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, phenoty
     D = X_train.shape[1]
 
     net = SetTransformer(D, K, dim_output, Parameters.num_inds)#.cuda()
+    net = net.to(device)
     num_params = count_parameters(net)
     print(f"The model has {num_params:,} trainable parameters.")
 
@@ -157,6 +157,7 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, phenoty
 
 
         net = SetTransformer(D, K, dim_output, Parameters.num_inds)#.cuda()
+        net = net.to(device)
         optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)
         if phenotype == "ogt":
             criterion = torch.nn.CrossEntropyLoss()
@@ -214,17 +215,12 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, phenoty
                 test_predictions = torch.argmax(probabilities, dim=1)
                # print(f"test_predictions = {test_predictions}")
 
-
-
-
-            
-        
-            test_accuracy = accuracy_score(test_labels.cpu().numpy(), test_predictions)
+            test_accuracy = accuracy_score(test_labels.cpu().numpy(), test_predictions.cpu().numpy())
          #   print(f"test_accuracy = {test_accuracy}")
 
             probabilities_cpu = probabilities.cpu().numpy()
             df1 = pd.DataFrame(probabilities_cpu)
-            df1['prediction'] = test_predictions
+            df1['prediction'] = test_predictions.cpu().numpy()
 
            # df1 = pd.DataFrame(test_predictions, columns=['prediction'])    
             df1['y_actual'] = test_labels.cpu().numpy()
@@ -283,8 +279,9 @@ def test(net, X_test, y_test, d_gtdb_test, Parameters, device, phenotype):
     elif phenotype == "aerob":
         loss_function = torch.nn.BCEWithLogitsLoss() #torch.nn.CrossEntropyLoss() 
 
-    df2 = pd.DataFrame()#columns=['prediction', 'y_actual', 'probabilities', 'accession', 'false_negative_rate', 'false_positive_rate', 'predictor'])
+   # df2 = pd.DataFrame()#columns=['prediction', 'y_actual', 'probabilities', 'accession', 'false_negative_rate', 'false_positive_rate', 'predictor'])
 
+    df_list = []
 
     with torch.no_grad():  # Disable gradient computation for testing
         for batch_idx, (batch_X, batch_y) in enumerate(test_loader):#for batch_X, batch_y in test_loader:
@@ -365,9 +362,13 @@ def test(net, X_test, y_test, d_gtdb_test, Parameters, device, phenotype):
 
            # new_batch_df = pd.DataFrame(batch_data)
 
+            df_list.append(df2)
+
          #   df2 = pd.concat([df2, new_batch_df], ignore_index=True)
 
     model_name =  "SetTransformer"
+
+    df2 = pd.concat(df_list, ignore_index=True)
 
     csv_filename = f"set_transformer/resuls_SetTransformer/prediction_probabilities_holdout_test_{model_name}_indPoints_{Parameters.num_inds}.csv"
     df2.to_csv(csv_filename, index=False, sep="\t", header=True)
