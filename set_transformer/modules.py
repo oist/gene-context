@@ -3,6 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")        
+
+
 class MAB(nn.Module):
     def __init__(self, dim_Q, dim_K, dim_V, num_heads, ln=False):
         super(MAB, self).__init__()
@@ -19,7 +22,7 @@ class MAB(nn.Module):
         self.fc_o = nn.Linear(dim_V, dim_V)
 
     def forward(self, Q, K):
-      #  print(f"BEF PROJ Q shape = {Q.shape}; K shape = {K.shape}")
+
         Q = self.fc_q(Q)
         
         K, V = self.fc_k(K), self.fc_v(K)
@@ -57,7 +60,7 @@ class ISAB(nn.Module):
         super(ISAB, self).__init__()
      #   print(f"dim_in = {dim_in}; dim_out = {dim_out}")
        # print("Running ISAB")
-        self.I = nn.Parameter(torch.Tensor(1, num_inds, dim_out)) #The first dimension is for batching ?
+        self.I = nn.Parameter(torch.Tensor(1, num_inds, dim_out)).to(device) #The first dimension is for batching ?
      #   print(f"self.I shape = {self.I.shape}")
         nn.init.xavier_uniform_(self.I)
         self.mab0 = MAB(dim_out, dim_in, dim_out, num_heads, ln=ln)
@@ -70,7 +73,9 @@ class ISAB(nn.Module):
       #  print(">_______")
       #  print(f"I shape = {mtr.shape}")
       #  print(f"X shape = {X.shape}")
-        H = self.mab0(self.I.repeat(X.size(0), 1, 1), X)
+      #  print("I device:", self.I.repeat(X.size(0), 1, 1).device)
+       # print("X device:", X.device)
+        H = self.mab0(self.I.repeat(X.size(0), 1, 1), X).to(device)
      #   print(f"H shape = {H.shape}")
      #   print("_______<")
         return self.mab1(X, H)

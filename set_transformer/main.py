@@ -67,15 +67,22 @@ def read_ogt_data():
 
     df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
 
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.hist(df_merged["ogt"], bins=50)#, bins=50, edgecolor='black')
+  #  plt.show()
+
     # Split the table based on "ogt_split" values
     df_train = df_merged.loc[df_merged['ogt_split'] == 'train']
     df_test = df_merged.loc[df_merged['ogt_split'] == 'test']
+
+    print(f"df_merged = {df_merged}")
 
     y_total_unique = []
 
     # Y train
     y_train = pd.DataFrame(df_train)
-    y_train = y_train[['min']]
+    y_train = y_train[['ogt']]
     
     print(f"uniq in train  = {np.unique(y_train.values)}; len = {len(np.unique(y_train.values))}")
     y_total_unique +=  list(np.unique(y_train.values))
@@ -95,7 +102,7 @@ def read_ogt_data():
 
     # Y test
     y_test = pd.DataFrame(df_test)
-    y_test  = y_test[['min']]
+    y_test  = y_test[['ogt']]
     print(f"uniq in test  = {np.unique(y_test.values)}; len = {len(np.unique(y_test.values))}")
     y_total_unique += list(np.unique(y_test.values))
     y_test  = torch.tensor(y_test.values).to(device)
@@ -118,8 +125,36 @@ def read_ogt_data():
     num_classes = len(y_total_unique)
     print(f"y_total_unique  ={y_total_unique}; len= {num_classes}")
 
-    y_train = [y_total_unique.index(yi) for yi in y_train]
-    y_test = [y_total_unique.index(yi) for yi in y_test]
+    num_classes = 100
+
+    # Create the linspace
+    categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_classes)
+    print(f"categories_linspace = {categories_linspace}")
+
+    print(f"y_test = {y_test}")
+    
+    
+    
+    indices = np.digitize(y_total_unique, categories_linspace)
+    
+    print(f"min y_total_unique  ={min(y_total_unique)}; max y_total_unique  ={max(y_total_unique)}")
+
+
+    y_train_np = y_train.cpu().numpy() if y_train.is_cuda else y_train.numpy()
+    y_train = np.digitize(y_train_np, categories_linspace, right=True)#[y_total_unique.index(yi) for yi in y_train]
+    y_test_np = y_test.cpu().numpy() if y_test.is_cuda else y_test.numpy()
+    y_test = np.digitize(y_test_np, categories_linspace, right=True)#[y_total_unique.index(yi) for yi in y_test]
+
+    print(f"y_test categor = {y_test}")
+
+
+    plt.figure()
+    plt.hist(y_train, bins=50)#, bins=40)#, bins=50, edgecolor='black')
+
+    plt.hist(y_test, bins=50)#, bins=40)#, bins=50, edgecolor='black')
+    plt.show()
+
+
     y_test  = torch.tensor(y_test).to(device)
    # y_test  = y_test.squeeze(1)
     y_test  = y_test.float()
@@ -128,9 +163,14 @@ def read_ogt_data():
    # y_train  = y_train.squeeze(1)
     y_train  = y_train.float()
     print(f"y_test new = {y_test}")
+
+
+    print(f"y_test = {max(y_test)}")
+    print(f"num_classes = {num_classes}")
+    print(f"y_train = {y_train}; max =  {max(y_train)}")
     
 
-    return X_train, y_train, X_test, y_test, num_classes
+    return X_train.to(device), y_train.to(device), X_test.to(device), y_test.to(device), num_classes
 
 if __name__ == '__main__':
 
