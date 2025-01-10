@@ -125,7 +125,7 @@ def read_ogt_data():
     num_classes = len(y_total_unique)
     print(f"y_total_unique  ={y_total_unique}; len= {num_classes}")
 
-    num_classes = 100
+    num_classes = 30
 
     # Create the linspace
     categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_classes)
