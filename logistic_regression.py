@@ -70,7 +70,7 @@ if phenotype == "aerob":
     X_train = scaler.fit_transform(X_train)
 
 elif phenotype == "ogt":
-    X_train, y_train, X_test, y_test, num_classes = read_ogt_data()
+    X_train, X_train_column_names, y_train, X_test, X_test_column_names, y_test, num_classes = read_ogt_data()
     X_train = X_train.cpu().numpy()
     y_train = y_train.cpu().numpy()
     X_test = X_test.cpu().numpy() 

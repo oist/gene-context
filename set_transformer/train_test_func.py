@@ -55,7 +55,6 @@ def train(X_train, y_train, Parameters, phenotype, num_classes):
     net = net.to(device)
    
     optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)#optim.Adam(net.parameters(), lr=lr)
-    
 
     tick = time.time()
     for epoch in range(Parameters.num_epochs):  #for t in range(1, num_steps+1): # num
@@ -72,7 +71,8 @@ def train(X_train, y_train, Parameters, phenotype, num_classes):
             outputs = net(batch_X)
             outputs = outputs.squeeze()
 
-            batch_y = batch_y.long()
+            if phenotype == "ogt":     
+                batch_y = batch_y.long()
             
             # Calculate loss based on outputs and true label
             loss = loss_function(outputs, batch_y)  
@@ -101,7 +101,12 @@ def train(X_train, y_train, Parameters, phenotype, num_classes):
 
     torch.save({'state_dict':net.state_dict()},
         os.path.join(save_dir, 'model.tar'))
-    
+
+    model_name =  "SetTransformer"    
+
+    save_path = f"set_transformer/resuls_SetTransformer/trained_models/trained_model_{model_name}_phenotype_{phenotype}_indPoints_{Parameters.num_inds}_D_{D}_K_{K}_dim_output_{dim_output}.model" 
+    torch.save(net.state_dict(), save_path)
+    print(f"Model saved to {save_path}")
     return net
 
 
@@ -302,11 +307,11 @@ def test(net, X_test, y_test, d_gtdb_test, Parameters, device, phenotype):
             outputs = outputs.squeeze()  # Ensure the shape matches batch_y
         #    print(f"outputs in test  = {outputs}; len = {len(outputs)}")
          #   print(f"batch_y  in test = {batch_y}; len = {len(batch_y)}")
-            batch_y = batch_y.long()
-
-            if outputs.ndimension() == 1:  # outputs shape will be [num_classes] when batch_size is 1
-                outputs = outputs.unsqueeze(0)  # Reshape to [1, num_classes]
-
+         
+            if phenotype == "ogt":         
+                batch_y = batch_y.long()
+                if outputs.ndimension() == 1:  # outputs shape will be [num_classes] when batch_size is 1
+                    outputs = outputs.unsqueeze(0)  # Reshape to [1, num_classes]
 
             loss = loss_function(outputs, batch_y)
             total_loss += loss.item()

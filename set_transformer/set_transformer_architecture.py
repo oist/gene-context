@@ -26,3 +26,15 @@ class SetTransformer(nn.Module):
     def forward(self, X):
 
         return self.dec(self.enc(X))    
+
+
+
+class SetTransformerWrapper(nn.Module):
+    def __init__(self, model, output_class):
+        super(SetTransformerWrapper, self).__init__()
+        self.model = model
+        self.output_class = output_class
+
+    def forward(self, x):
+        outputs = self.model(x)  # Get model outputs
+        return outputs[:, self.output_class]  # Select the class output        
