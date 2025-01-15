@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 def read_xy_data(data_filename, y_filename):
 
     gtdb = pl.concat([
-        pl.read_csv('data/bac120_metadata_r202.tsv', separator="\t"),
-        pl.read_csv('data/ar122_metadata_r202.tsv', separator="\t")
+        pl.read_csv('data_aerob/bac120_metadata_r202.tsv', separator="\t"),
+        pl.read_csv('data_aerob/ar122_metadata_r202.tsv', separator="\t")
     ])
     
     gtdb = gtdb.filter(pl.col("gtdb_representative") == "t")
