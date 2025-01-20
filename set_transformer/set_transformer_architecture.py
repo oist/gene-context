@@ -10,7 +10,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SetTransformer(nn.Module):
     def __init__(self, dim_input, num_outputs, dim_output,
-            num_inds=num_inds, dim_hidden=64, num_heads=4, ln=True):  #num_inds is the number of inducing points m
+            num_inds=num_inds, dim_hidden=1024, num_heads=4, ln=True):  #num_inds is the number of inducing points m
         super(SetTransformer, self).__init__()
         self.enc = nn.Sequential(
                 ISAB(dim_input, dim_hidden, num_heads, num_inds, ln=ln),
