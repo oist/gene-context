@@ -23,10 +23,11 @@ def process_dataset(X_filename, y_filename):
 
    # print(f"X_train  ={X_train.columns}")
 
-    X_train = X_train.drop(columns=["family_right"]) #"phylum_right", "class_right", "order_right", "genus_right"
+    X_train = X_train.drop(columns=["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
     X_train_column_names = X_train.columns
 
     matrix = X_train.values
+    #print(matrix)
     X_data = torch.tensor(matrix)
     X_train = X_data.float().to(device)
     X_train_numpy = X_train.cpu().numpy()
@@ -177,7 +178,7 @@ def read_ogt_data():
    # print(f"y_train = {y_train}; max =  {max(y_train)}")
     
 
-    return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), num_classes
+    return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), num_classes, categories_linspace
 
 if __name__ == '__main__':
 
@@ -189,7 +190,7 @@ if __name__ == '__main__':
     # 2. Process train and test datasets
 
     if phenotype == "ogt":
-        X_train, X_train_column_names, y_train, X_test, X_test_column_names, y_test, num_classes = read_ogt_data()
+        X_train, X_train_column_names, y_train, X_test, X_test_column_names, y_test, num_classes, categories_linspace = read_ogt_data()
         d_gtdb_train = None
         d_gtdb_test = None
     elif phenotype == "aerob":
