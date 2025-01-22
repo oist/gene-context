@@ -3,6 +3,7 @@ import polars as pl
 import logging 
 import pandas as pd
 import matplotlib.pyplot as plt
+from collections import defaultdict
 
 import random 
 from sklearn.preprocessing import MaxAbsScaler
@@ -164,7 +165,10 @@ def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors)
    print("Explained variance ratio:", explained_variance_ratio)
    print("Total explained variance:", sum(explained_variance_ratio))
 
-   print(f"len(np.unique(y_train_val)) = {len(np.unique(y_train_val))}")
+
+
+   # Ensure 'y_train_val' has unique, valid labels
+   unique_ids = np.unique(y_train_val)
 
    # Check if 'colors' is already a ListedColormap or needs to be generated
    if isinstance(colors, ListedColormap):
@@ -172,21 +176,36 @@ def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors)
    else:
        # Generate colors based on the unique labels in y_train_val
        from matplotlib import cm
-       listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(np.unique(y_train_val)+1))))
+       listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
+     #  listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(np.unique(y_train_val)+1))))
       # listed_cmap = plt.get_cmap(colors, len(np.unique(y_train_val)))#listed_cmap, _ = generate_colors_from_colormap(colors, N=len(np.unique(y_train_val)))
 
 
-   print("Unique labels:", np.unique(y_train_val))
-   print("Number of unique categories:", len(np.unique(y_train_val)))
-   # Plot the results
-
-
-   plt.figure()
+   plt.figure(figsize=(8, 6))
    scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=1, s = 10, label = category_names, cmap=listed_cmap)
    plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0],2)}")
    plt.ylabel(f"PC 2; var = {round(explained_variance_ratio[1],2)}")
-  # handles, labels = scatter.legend_elements()  # Get handles and labels from scatter plot
-   handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(np.unique(y_train_val)+1)), markersize=10) for i in range(len(np.unique(y_train_val)+1))]
-   plt.legend(handles=handles, labels=category_names,loc='lower center', bbox_to_anchor=(1.05, 1), title="Categories", ncol=5)
-  # plt.tight_layout()
+   # handles, labels = scatter.legend_elements()  # Get handles and labels from scatter plot
+
+
+
+   categ_name_dict = defaultdict(int)
+   for i in range(len(y_train_val)):
+       categ_id = y_train_val[i]
+       #if categ_id not in categ_name_dict.keys():
+       categ_id = int(categ_id)
+       categ_name_dict[categ_id] = category_names[i]
+
+
+
+
+   # Map the unique labels to their corresponding category names
+  # label_to_category = {label: category_names[label] for label in unique_labels}
+
+    # Create legend handles and labels based on unique labels
+   handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
+   labels = [categ_name_dict[unique_id] for unique_id in unique_ids]
+
+   plt.legend(handles=handles, labels=labels ,loc='lower left', bbox_to_anchor=(1.05, 1), title="Categories", ncol=5)
+   
    return listed_cmap    

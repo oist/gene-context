@@ -117,9 +117,6 @@ def count_parameters(model):
 def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, phenotype, num_classes):
     num_folds = 5
 
-  #  print(f"y_train = {y_train}")
-  #  print(f"uniq y_train = {np.unique(y_train)}")
-
     if phenotype == "aerob":
         groups = d_gtdb_train['family'].to_list()# d3_train['family'].to_list()
         group_kfold = GroupKFold(n_splits=num_folds)  
@@ -142,24 +139,15 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, phenoty
         print(f"\nFold {fold+1}/{num_folds}")
         print("-" * 30)
 
-       # print(f"in cross0valid y_train = {y_train}")
-       # print(f"in cross0valid X_train = {X_train}")
-       # print(f"in cross0valid train_idx = {train_idx}; len = {len(train_idx)}")
-
-       # print(f"train_idx type: {type(train_idx)}, dtype: {train_idx.dtype if hasattr(train_idx, 'dtype') else 'N/A'}")
         # Split the data into training and testing subsets
         train_data = X_train[train_idx].clone().detach().to(torch.float32).to(device)
-       # print(f"train_data = {train_data}")
-      #  train_idx = torch.tensor(train_idx, dtype=torch.long)
         train_labels = y_train[train_idx].clone().detach().to(torch.long).to(device)
         test_data = X_train[test_idx].clone().detach().to(torch.float32).to(device)
         test_labels = y_train[test_idx].clone().detach().to(torch.long).to(device)
 
-
         # Create DataLoader for mini-batch training
         train_dataset = torch.utils.data.TensorDataset(train_data, train_labels)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=Parameters.batch_size, shuffle=True) #True
-
 
         net = SetTransformer(D, K, dim_output, Parameters.num_inds)#.cuda()
         net = net.to(device)
@@ -182,9 +170,8 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, phenoty
                 outputs = outputs.squeeze()
 
                 batch_labels = batch_labels.float()
-              # print(f"outputs = {outputs}")
                 batch_labels = batch_labels.long()
-              #  print(f"batch_labels = {batch_labels}")
+
 
                 if outputs.ndimension() == 1:  # outputs shape will be [num_classes] when batch_size is 1
                     outputs = outputs.unsqueeze(0)  # Reshape to [1, num_classes]
