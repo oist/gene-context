@@ -3,6 +3,8 @@ import numpy as np
 import argparse
 from collections import namedtuple
 
+import matplotlib.pyplot as plt
+
 import torch
 import pandas as pd
 from sklearn.preprocessing import MaxAbsScaler
@@ -133,7 +135,7 @@ def read_ogt_data():
     num_classes = len(y_total_unique)
    # print(f"y_total_unique  ={y_total_unique}; len= {num_classes}")
 
-    num_classes = 80
+    num_classes = 50
 
     # Create the linspace
     categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_classes)
@@ -156,11 +158,12 @@ def read_ogt_data():
   #  print(f"y_test categor = {y_test}")
 
 
-    # plt.figure()
-    # plt.hist(y_train, bins=50)#, bins=40)#, bins=50, edgecolor='black')
+   # plt.figure()
+   # hist = plt.hist(y_train, bins=num_classes)#, bins=40)#, bins=50, edgecolor='black')
+   # print(hist)
 
     # plt.hist(y_test, bins=50)#, bins=40)#, bins=50, edgecolor='black')
-    # plt.show()
+   # plt.show()
 
 
     y_test  = torch.tensor(y_test).to(device)
