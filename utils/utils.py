@@ -1,20 +1,113 @@
-import numpy as np
-import polars as pl
+import random 
+import torch
 import logging 
 import pandas as pd
+import numpy as np
+import polars as pl
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-import random 
+from matplotlib.lines import Line2D
+from sklearn.decomposition import PCA
+from matplotlib.colors import ListedColormap
 from sklearn.preprocessing import MaxAbsScaler
 
-from matplotlib.lines import Line2D
+def read_ogt_data(device, num_class):
+    # Read the csv file with keggs 
+    filename = "data_ogt/kegg.csv"
+    df_keggs = pd.read_csv(filename,sep=",")
 
+    # Replace empty or NaN cells with 0
+    df_keggs.fillna(0, inplace=True)
 
-from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
+    # Read the csv file with the splits 
+    filename_labels = "data_ogt/ogt_splits.csv"
+    df_labels = pd.read_csv(filename_labels, sep=",")
+    df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
 
-from matplotlib.colors import ListedColormap
+    # Split the table based on "ogt_split" values
+    df_train = df_merged.loc[df_merged['ogt_split'] == 'train']
+    df_test = df_merged.loc[df_merged['ogt_split'] == 'test']
+    y_total_unique = []
+
+    # Y train
+    y_train = pd.DataFrame(df_train)
+    y_train = y_train[['ogt']]
+    y_total_unique +=  list(np.unique(y_train.values))
+    y_train = torch.tensor(y_train.values).to(device)
+    y_train = y_train.squeeze(1)
+    y_train = y_train.float()
+
+    # X train
+    X_train = df_train.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
+    X_train_column_names = X_train.columns
+    matrix = X_train.values
+    X_data = torch.tensor(matrix)
+    X_train = X_data.float().to(device)
+    X_train_numpy = X_train.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_train_scaled = scaler.fit_transform(X_train_numpy)
+    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
+
+    # Y test
+    y_test = pd.DataFrame(df_test)
+    y_test  = y_test[['ogt']]
+    y_total_unique += list(np.unique(y_test.values))
+    y_test  = torch.tensor(y_test.values).to(device)
+    y_test  = y_test .squeeze(1)
+    y_test  = y_test.float()
+    
+    # X test
+    X_test = df_test.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
+    X_test_column_names = X_test.columns
+    matrix = X_test.values
+    X_data = torch.tensor(matrix)
+    X_test = X_data.float().to(device)
+    X_test_numpy = X_test.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_test_scaled = scaler.fit_transform(X_test_numpy)
+    X_test = torch.tensor(X_test_scaled, dtype=torch.float32).to(device)
+
+    # Convert to 0-N categories
+    y_total_unique = list(np.unique(y_total_unique))
+
+    # Create the linspace and distribute the point sto categories
+    categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_class)
+
+    y_train_np = y_train.cpu().numpy() if y_train.is_cuda else y_train.numpy()
+    y_train = np.digitize(y_train_np, categories_linspace, right=True)
+    y_test_np = y_test.cpu().numpy() if y_test.is_cuda else y_test.numpy()
+    y_test = np.digitize(y_test_np, categories_linspace, right=True)
+
+    # Convert labels to the right format
+    y_test  = torch.tensor(y_test).to(device)
+    y_test  = y_test.float()
+    y_train  = torch.tensor(y_train).to(device)
+    y_train  = y_train.float()
+
+    return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), categories_linspace
+
+def process_aerob_dataset(X_filename, y_filename, device):
+    d3_train, X_train, y_train = read_xy_data(X_filename, y_filename)
+    d_gtdb_train = d3_train.to_pandas()
+
+    X_train = X_train.drop(columns=["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
+    X_train_column_names = X_train.columns
+
+    matrix = X_train.values
+    X_data = torch.tensor(matrix)
+    X_train = X_data.float().to(device)
+    X_train_numpy = X_train.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_train_scaled = scaler.fit_transform(X_train_numpy)
+    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device).float()
+
+    y_train = torch.tensor(y_train.values).to(device)
+    y_train = y_train.squeeze(1)
+    y_train = y_train.float()
+
+    return X_train, X_train_column_names, y_train, d_gtdb_train
+
 
 def read_xy_data(data_filename, y_filename):
 
@@ -40,8 +133,6 @@ def read_xy_data(data_filename, y_filename):
     # Log counts of each class
     logging.info("Counts of each class amongst unique accessions: %s", y1.group_by(target_column).agg(pl.len()))
     
-
-    
     # Read the data
     d = pl.read_csv(data_filename,separator="\t")
     d2 = d.join(gtdb.select(['accession','phylum','class','order','family','genus']), on="accession", how="left")
@@ -52,19 +143,6 @@ def read_xy_data(data_filename, y_filename):
     
     d_gtdb = d3.to_pandas()
     X = d3.select(pl.exclude(['accession',target_column,'phylum','class','order','family','genus','false_negative_rate','false_positive_rate'])).to_pandas()
-    
-    # Map oxytolerance to 0, 1, 2
-    if 'anaerobic_with_respiration_genes' in d3['oxytolerance'].to_list():
-        classes_map = {
-            'anaerobe': 0,
-            'aerobe': 1,
-            'anaerobic_with_respiration_genes': 2,
-        }
-    else:
-        classes_map = {
-            'anaerobe': 0,
-            'aerobe': 1,
-        }
     
     # Generate y vector with 0s, and 1s
     y = d3.select(
@@ -81,22 +159,7 @@ def table_row_subsampling(d3):
 
    target_column = "oxytolerance"
 
-   d_gtdb = d3.to_pandas()
    X = d3.select(pl.exclude([target_column])).to_pandas() #'phylum','class','order','family','genus'
-   
-
-   # Map oxytolerance to 0, 1, 2
-   if 'anaerobic_with_respiration_genes' in d3['oxytolerance'].to_list():
-       classes_map = {
-           'anaerobe': 0,
-           'aerobe': 1,
-           'anaerobic_with_respiration_genes': 2,
-       }
-   else:
-       classes_map = {
-           'anaerobe': 0,
-           'aerobe': 1,
-       }
    
    # Generate y vector with 0s, and 1s
    y = d3.select(
@@ -108,11 +171,8 @@ def table_row_subsampling(d3):
    )
    y = y.to_pandas()
 
-
-   
    num_aerobs = y['oxytolerance'].sum()
    num_anaerobs = len(y['oxytolerance']) - num_aerobs
-   
    
    # Sub-sampling training data
    indices_aerobs = y[y['oxytolerance'] == 1].index.tolist()
@@ -148,7 +208,6 @@ def generate_colors_from_colormap(colormap_name, N):
    return listed_cmap, colors
 
 def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors):
-
    scaler = MaxAbsScaler()
 
    # Fit and transform the data
@@ -165,8 +224,6 @@ def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors)
    print("Explained variance ratio:", explained_variance_ratio)
    print("Total explained variance:", sum(explained_variance_ratio))
 
-
-
    # Ensure 'y_train_val' has unique, valid labels
    unique_ids = np.unique(y_train_val)
 
@@ -177,17 +234,11 @@ def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors)
        # Generate colors based on the unique labels in y_train_val
        from matplotlib import cm
        listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
-     #  listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(np.unique(y_train_val)+1))))
-      # listed_cmap = plt.get_cmap(colors, len(np.unique(y_train_val)))#listed_cmap, _ = generate_colors_from_colormap(colors, N=len(np.unique(y_train_val)))
-
 
    plt.figure(figsize=(8, 6))
    scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=1, s = 10, label = category_names, cmap=listed_cmap)
    plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0],2)}")
    plt.ylabel(f"PC 2; var = {round(explained_variance_ratio[1],2)}")
-   # handles, labels = scatter.legend_elements()  # Get handles and labels from scatter plot
-
-
 
    categ_name_dict = defaultdict(int)
    for i in range(len(y_train_val)):
@@ -195,12 +246,6 @@ def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors)
        #if categ_id not in categ_name_dict.keys():
        categ_id = int(categ_id)
        categ_name_dict[categ_id] = category_names[i]
-
-
-
-
-   # Map the unique labels to their corresponding category names
-  # label_to_category = {label: category_names[label] for label in unique_labels}
 
     # Create legend handles and labels based on unique labels
    handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
