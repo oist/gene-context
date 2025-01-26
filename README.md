@@ -17,10 +17,16 @@ The input train and test data are the following:
     - data_ogt/kegg.csv
     - data_ogt/ogt_splits.csv
 
-The results of the training and cross-validation are saved to `results/SetTransformer/{phenotype}`. The scripts generate and save:
-    - prediction_probabilities_cross_valid_fold_{fold_id}_SetTransformer_indPoints_{num_ind_points}.csv
-    - prediction_probabilities_holdout_test_SetTransformer_indPoints_{num_ind_points}.csv
-    - trained_model_SetTransformer_indPoints_{num_ind_points}_D_{D_val}_K_{K_val}_dim_output_{dim_output_val}.model
+The results of the training and cross-validation are saved to `results/SetTransformer/{phenotype}`. 
+
+The scripts generate and save:
+- prediction_probabilities_cross_valid_fold_{fold_id}_SetTransformer_indPoints_{num_ind_points}.csv
+- prediction_probabilities_holdout_test_SetTransformer_indPoints_{num_ind_points}.csv
+- trained_model_SetTransformer_indPoints_{num_ind_points}_D_{D_val}_K_{K_val}_dim_output_{dim_output_val}.model
+
+The input data files can be found  [here](https://office365oist-my.sharepoint.com/:f:/g/personal/a-koldaeva_oist_jp/Es-FfClDP6JFgNvpg0ga1aEB_v3foyEEJQ2oED3Ic-dTrw?email=GERGELY.SZOLLOSI%40OIST.JP&e=y5R136) (request access if needed).
+
+
 
 The below command will run cross-validation, training, and testing of a Set Transformer model for the specified parameters.    
 ```bash
