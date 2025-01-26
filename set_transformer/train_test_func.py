@@ -134,10 +134,12 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                 outputs = outputs.squeeze()
 
                 batch_labels = batch_labels.float()
-                batch_labels = batch_labels.long()
+                
 
-                if outputs.ndimension() == 1:  
-                    outputs = outputs.unsqueeze(0)  
+                if Parameters.phenotype == "ogt":
+                    batch_labels = batch_labels.long()
+                    if outputs.ndimension() == 1:  
+                        outputs = outputs.unsqueeze(0)  
 
                 loss = criterion(outputs, batch_labels)
 
@@ -156,7 +158,7 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
             if Parameters.phenotype == "aerob":
                 probabilities = torch.sigmoid(test_outputs).squeeze()  # Convert logits to probabilities and remove unnecessary dimensions
                 # Apply a threshold of 0.5 to convert probabilities to binary predictions
-                test_predictions = (probabilities > 0.5).int().cpu().numpy()  # Convert probabilities to 0 or 1
+                test_predictions = (probabilities > 0.5).int() # Convert probabilities to 0 or 1
             elif Parameters.phenotype == "ogt":
                 probabilities = torch.nn.functional.softmax(test_outputs).squeeze()
                 test_predictions = torch.argmax(probabilities, dim=1)
