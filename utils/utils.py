@@ -13,18 +13,26 @@ from matplotlib.colors import ListedColormap
 from sklearn.preprocessing import MaxAbsScaler
 
 def read_ogt_data(device, num_class):
-    # Read the csv file with keggs 
-    filename = "data_ogt/kegg.csv"
-    df_keggs = pd.read_csv(filename,sep=",")
+    # Read the csv file with keggs
+    try:
+        filename = "data_ogt/kegg.csv"
+        df_keggs = pd.read_csv(filename,sep=",")
+    except FileNotFoundError as e: 
+        filename = "../data_ogt/kegg.csv"
+        df_keggs = pd.read_csv(filename,sep=",")
 
     # Replace empty or NaN cells with 0
     df_keggs.fillna(0, inplace=True)
 
     # Read the csv file with the splits 
-    filename_labels = "data_ogt/ogt_splits.csv"
-    df_labels = pd.read_csv(filename_labels, sep=",")
-    df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
-
+    try:
+        filename_labels = "data_ogt/ogt_splits.csv"
+        df_labels = pd.read_csv(filename_labels, sep=",")
+        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
+    except FileNotFoundError as e: 
+        filename_labels = "../data_ogt/ogt_splits.csv"
+        df_labels = pd.read_csv(filename_labels, sep=",")
+        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
     # Split the table based on "ogt_split" values
     df_train = df_merged.loc[df_merged['ogt_split'] == 'train']
     df_test = df_merged.loc[df_merged['ogt_split'] == 'test']
@@ -111,11 +119,16 @@ def process_aerob_dataset(X_filename, y_filename, device):
 
 def read_xy_data(data_filename, y_filename):
 
-    gtdb = pl.concat([
-        pl.read_csv('data_aerob/bac120_metadata_r202.tsv', separator="\t"),
-        pl.read_csv('data_aerob/ar122_metadata_r202.tsv', separator="\t")
-    ])
-    
+    try:
+        gtdb = pl.concat([
+            pl.read_csv('data_aerob/bac120_metadata_r202.tsv', separator="\t"),
+            pl.read_csv('data_aerob/ar122_metadata_r202.tsv', separator="\t")
+        ])
+    except FileNotFoundError as e:  
+        gtdb = pl.concat([
+            pl.read_csv('../data_aerob/bac120_metadata_r202.tsv', separator="\t"),
+            pl.read_csv('../data_aerob/ar122_metadata_r202.tsv', separator="\t")
+        ])
     gtdb = gtdb.filter(pl.col("gtdb_representative") == "t")
     logging.info("Read in {} GTDB reps".format(len(gtdb)))
     gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(1).alias("phylum"))
