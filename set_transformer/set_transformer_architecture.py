@@ -26,8 +26,6 @@ class SetTransformer(nn.Module): #768 512
     def forward(self, X):
         return self.dec(self.enc(X))    
 
-
-
 class SetTransformerWrapper(nn.Module):
     def __init__(self, model, output_class):
         super(SetTransformerWrapper, self).__init__()
