@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# gene-context
-=======
 
 This repository contains the implementation of the Set Transformer model for predicting phenotypes from gene count data.  
 
@@ -44,4 +41,3 @@ Or
 ```bash
     python3 -m set_transformer.main --num_inds 20 --learning_rate 0.0001 --num_epochs 10 --batch_size 32 --phenotype aerob
 ```
->>>>>>> anzhelika/set_transf_bact_phenot
