@@ -1,0 +1,269 @@
+import random 
+import torch
+import logging 
+import pandas as pd
+import numpy as np
+import polars as pl
+import matplotlib.pyplot as plt
+from collections import defaultdict
+
+from matplotlib.lines import Line2D
+from sklearn.decomposition import PCA
+from matplotlib.colors import ListedColormap
+from sklearn.preprocessing import MaxAbsScaler
+
+def read_ogt_data(device, num_class):
+    # Read the csv file with keggs
+    try:
+        filename = "data_ogt/kegg.csv"
+        df_keggs = pd.read_csv(filename,sep=",")
+    except FileNotFoundError as e: 
+        filename = "../data_ogt/kegg.csv"
+        df_keggs = pd.read_csv(filename,sep=",")
+
+    # Replace empty or NaN cells with 0
+    df_keggs.fillna(0, inplace=True)
+
+    # Read the csv file with the splits 
+    try:
+        filename_labels = "data_ogt/ogt_splits.csv"
+        df_labels = pd.read_csv(filename_labels, sep=",")
+        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
+    except FileNotFoundError as e: 
+        filename_labels = "../data_ogt/ogt_splits.csv"
+        df_labels = pd.read_csv(filename_labels, sep=",")
+        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
+    # Split the table based on "ogt_split" values
+    df_train = df_merged.loc[df_merged['ogt_split'] == 'train']
+    df_test = df_merged.loc[df_merged['ogt_split'] == 'test']
+    y_total_unique = []
+
+    # Y train
+    y_train = pd.DataFrame(df_train)
+    y_train = y_train[['ogt']]
+    y_total_unique +=  list(np.unique(y_train.values))
+    y_train = torch.tensor(y_train.values).to(device)
+    y_train = y_train.squeeze(1)
+    y_train = y_train.float()
+
+    # X train
+    X_train = df_train.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
+    X_train_column_names = X_train.columns
+    matrix = X_train.values
+    X_data = torch.tensor(matrix)
+    X_train = X_data.float().to(device)
+    X_train_numpy = X_train.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_train_scaled = scaler.fit_transform(X_train_numpy)
+    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
+
+    # Y test
+    y_test = pd.DataFrame(df_test)
+    y_test  = y_test[['ogt']]
+    y_total_unique += list(np.unique(y_test.values))
+    y_test  = torch.tensor(y_test.values).to(device)
+    y_test  = y_test .squeeze(1)
+    y_test  = y_test.float()
+    
+    # X test
+    X_test = df_test.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
+    X_test_column_names = X_test.columns
+    matrix = X_test.values
+    X_data = torch.tensor(matrix)
+    X_test = X_data.float().to(device)
+    X_test_numpy = X_test.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_test_scaled = scaler.fit_transform(X_test_numpy)
+    X_test = torch.tensor(X_test_scaled, dtype=torch.float32).to(device)
+
+    # Convert to 0-N categories
+    y_total_unique = list(np.unique(y_total_unique))
+
+    # Create the linspace and distribute the point sto categories
+    categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_class)
+
+    y_train_np = y_train.cpu().numpy() if y_train.is_cuda else y_train.numpy()
+    y_train = np.digitize(y_train_np, categories_linspace, right=True)
+    y_test_np = y_test.cpu().numpy() if y_test.is_cuda else y_test.numpy()
+    y_test = np.digitize(y_test_np, categories_linspace, right=True)
+
+    # Convert labels to the right format
+    y_test  = torch.tensor(y_test).to(device)
+    y_test  = y_test.float()
+    y_train  = torch.tensor(y_train).to(device)
+    y_train  = y_train.float()
+
+    return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), categories_linspace
+
+def process_aerob_dataset(X_filename, y_filename, device):
+    d3_train, X_train, y_train = read_xy_data(X_filename, y_filename)
+    d_gtdb_train = d3_train.to_pandas()
+
+    X_train = X_train.drop(columns=["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
+    X_train_column_names = X_train.columns
+
+    matrix = X_train.values
+    X_data = torch.tensor(matrix)
+    X_train = X_data.float().to(device)
+    X_train_numpy = X_train.cpu().numpy()
+    scaler = MaxAbsScaler()
+    X_train_scaled = scaler.fit_transform(X_train_numpy)
+    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device).float()
+
+    y_train = torch.tensor(y_train.values).to(device)
+    y_train = y_train.squeeze(1)
+    y_train = y_train.float()
+
+    return X_train, X_train_column_names, y_train, d_gtdb_train
+
+
+def read_xy_data(data_filename, y_filename):
+
+    try:
+        gtdb = pl.concat([
+            pl.read_csv('data_aerob/bac120_metadata_r202.tsv', separator="\t"),
+            pl.read_csv('data_aerob/ar122_metadata_r202.tsv', separator="\t")
+        ])
+    except FileNotFoundError as e:  
+        gtdb = pl.concat([
+            pl.read_csv('../data_aerob/bac120_metadata_r202.tsv', separator="\t"),
+            pl.read_csv('../data_aerob/ar122_metadata_r202.tsv', separator="\t")
+        ])
+    gtdb = gtdb.filter(pl.col("gtdb_representative") == "t")
+    logging.info("Read in {} GTDB reps".format(len(gtdb)))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(1).alias("phylum"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(2).alias("class"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(3).alias("order"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(4).alias("family"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(5).alias("genus"))
+
+    
+    target_column = "oxytolerance"
+    # Read y
+    y0 = pl.read_csv(y_filename, separator="\t")
+    y1 = y0.unique() # There are some duplicates in the cyanos, so dedup
+    logging.info("Read y: %s", y1.shape)
+    # Log counts of each class
+    logging.info("Counts of each class amongst unique accessions: %s", y1.group_by(target_column).agg(pl.len()))
+    
+    # Read the data
+    d = pl.read_csv(data_filename,separator="\t")
+    d2 = d.join(gtdb.select(['accession','phylum','class','order','family','genus']), on="accession", how="left")
+
+    d3 = d2.join(y1, on="accession", how="inner") # Inner join because test accessions are in y1 but not in d2
+
+    print(f"Counts of each class in training/test data: {d3.group_by(target_column).agg(pl.len())}")
+    
+    d_gtdb = d3.to_pandas()
+    X = d3.select(pl.exclude(['accession',target_column,'phylum','class','order','family','genus','false_negative_rate','false_positive_rate'])).to_pandas()
+    
+    # Generate y vector with 0s, and 1s
+    y = d3.select(
+        pl.when(pl.col(target_column) == 'anaerobe').then(0)
+        .when(pl.col(target_column) == 'aerobe').then(1)
+        .when(pl.col(target_column) == 'anaerobic_with_respiration_genes').then(2)
+        .otherwise(None)  # Handle cases not in the map
+        .alias(target_column)
+    )
+    y = y.to_pandas()
+    return d3, X, y
+
+def table_row_subsampling(d3):
+
+   target_column = "oxytolerance"
+
+   X = d3.select(pl.exclude([target_column])).to_pandas() #'phylum','class','order','family','genus'
+   
+   # Generate y vector with 0s, and 1s
+   y = d3.select(
+       pl.when(pl.col(target_column) == 'anaerobe').then(0)
+       .when(pl.col(target_column) == 'aerobe').then(1)
+       .when(pl.col(target_column) == 'anaerobic_with_respiration_genes').then(2)
+       .otherwise(None)  # Handle cases not in the map
+       .alias(target_column)
+   )
+   y = y.to_pandas()
+
+   num_aerobs = y['oxytolerance'].sum()
+   num_anaerobs = len(y['oxytolerance']) - num_aerobs
+   
+   # Sub-sampling training data
+   indices_aerobs = y[y['oxytolerance'] == 1].index.tolist()
+   indices_anaerobs = y[y['oxytolerance'] == 0].index.tolist()
+
+   if num_aerobs > num_anaerobs:
+       print(f"Sub-sampling {num_aerobs} aerobs to {num_anaerobs} anaerobs")
+       subsampled_aerobs = random.sample(indices_aerobs, num_anaerobs)
+       final_row_indices = subsampled_aerobs + indices_anaerobs
+   else:
+       print(f"Sub-sampling {indices_anaerobs} aerobs to {num_aerobs} anaerobs")
+       subsampled_anaerobs = random.sample(indices_anaerobs, num_aerobs)
+       final_row_indices = subsampled_anaerobs + indices_aerobs
+
+   X_subsampled = X.iloc[final_row_indices].reset_index(drop=True)
+   y_subsampled = y.iloc[final_row_indices].reset_index(drop=True)
+
+   print(f"Sub-sampled table length = {len(y_subsampled)} with { y_subsampled['oxytolerance'].sum()} aerobs and  {len(y_subsampled['oxytolerance']) - y_subsampled['oxytolerance'].sum()} anaerobs")
+   
+   return X_subsampled, y_subsampled
+
+
+def generate_colors_from_colormap(colormap_name, N):
+   # Get the colormap
+   colormap = plt.cm.get_cmap(colormap_name, N)
+   
+   # Generate the N colors from the colormap
+   colors = [colormap(i) for i in range(N)]
+   
+   # Create a ListedColormap from the N colors
+   listed_cmap = ListedColormap(colors)
+   
+   return listed_cmap, colors
+
+def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors):
+   scaler = MaxAbsScaler()
+
+   # Fit and transform the data
+   X_train_val = scaler.fit_transform(X_train_val)
+
+   # Run PCA on the X-data
+   pca = PCA(n_components=n_compon)
+   X_train_pca = pca.fit_transform(X_train_val)
+   print(f"Data after PCA reduction: {X_train_pca.shape}")
+
+   # Find the explained variance
+   explained_variance_ratio = pca.explained_variance_ratio_
+
+   print("Explained variance ratio:", explained_variance_ratio)
+   print("Total explained variance:", sum(explained_variance_ratio))
+
+   # Ensure 'y_train_val' has unique, valid labels
+   unique_ids = np.unique(y_train_val)
+
+   # Check if 'colors' is already a ListedColormap or needs to be generated
+   if isinstance(colors, ListedColormap):
+       listed_cmap = colors  # Use the passed ListedColormap directly
+   else:
+       # Generate colors based on the unique labels in y_train_val
+       from matplotlib import cm
+       listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
+
+   plt.figure(figsize=(8, 6))
+   scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=1, s = 10, label = category_names, cmap=listed_cmap)
+   plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0],2)}")
+   plt.ylabel(f"PC 2; var = {round(explained_variance_ratio[1],2)}")
+
+   categ_name_dict = defaultdict(int)
+   for i in range(len(y_train_val)):
+       categ_id = y_train_val[i]
+       #if categ_id not in categ_name_dict.keys():
+       categ_id = int(categ_id)
+       categ_name_dict[categ_id] = category_names[i]
+
+    # Create legend handles and labels based on unique labels
+   handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
+   labels = [categ_name_dict[unique_id] for unique_id in unique_ids]
+
+   plt.legend(handles=handles, labels=labels ,loc='lower left', bbox_to_anchor=(1.05, 1), title="Categories", ncol=5)
+   
+   return listed_cmap    
