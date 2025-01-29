@@ -35,12 +35,7 @@ E.g.
     python3 -m set_transformer.main --num_inds 20 --learning_rate 0.0001 --num_epochs 10 --batch_size 32 --phenotype ogt
 """
 
-<<<<<<< HEAD
-  #  X_train = X_train.drop(columns=["family", "phylum", "class", "order", "genus"])#["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
-    X_train_column_names = X_train.columns
-=======
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")       
->>>>>>> 2a7ce6a63810fc3651fe4de9f90697ede9ca65c4
 
 # Number of classes in the classification task for OGT (this number = 2 for aerob. phenotype)
 NUM_CLASSES_OGT = 50 
@@ -82,11 +77,6 @@ if __name__ == '__main__':
     # 1. Process input parameters
     Parameters = process_args()
 
-<<<<<<< HEAD
-    phenotype = "aerob" # "aerob" "ogt"
-
-=======
->>>>>>> 2a7ce6a63810fc3651fe4de9f90697ede9ca65c4
     # 2. Process train and test datasets
     print(f"\nProcessing train and test datasets for {Parameters.phenotype} phenotype...\n")
     if Parameters.phenotype == "ogt":
