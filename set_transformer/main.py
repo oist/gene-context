@@ -25,7 +25,7 @@ def process_dataset(X_filename, y_filename):
 
    # print(f"X_train  ={X_train.columns}")
 
-    X_train = X_train.drop(columns=["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
+  #  X_train = X_train.drop(columns=["family", "phylum", "class", "order", "genus"])#["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
     X_train_column_names = X_train.columns
 
     matrix = X_train.values
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     # 1. Process input parameters
     Parameters = process_args()
 
-    phenotype = "ogt" # "aerob" "ogt"
+    phenotype = "aerob" # "aerob" "ogt"
 
     # 2. Process train and test datasets
 
