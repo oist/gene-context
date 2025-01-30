@@ -115,13 +115,8 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
 
         net = SetTransformer(D, K, dim_output, Parameters.num_inds)#.cuda()
         net = net.to(device)
-<<<<<<< HEAD
-        optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01) #weight_decay=0.01)
-        if phenotype == "ogt":
-=======
         optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)
         if Parameters.phenotype == "ogt":
->>>>>>> 2a7ce6a63810fc3651fe4de9f90697ede9ca65c4
             criterion = torch.nn.CrossEntropyLoss()
         elif Parameters.phenotype == "aerob":
             criterion = torch.nn.BCEWithLogitsLoss() 
@@ -140,16 +135,6 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                 outputs = outputs.squeeze()
 
                 batch_labels = batch_labels.float()
-<<<<<<< HEAD
-
-                if phenotype == "ogt":
-                    batch_labels = batch_labels.long()
-                    if outputs.ndimension() == 1:  # outputs shape will be [num_classes] when batch_size is 1
-                        outputs = outputs.unsqueeze(0)  # Reshape to [1, num_classes]
-
-             #   print(f"outputs in CV  = {outputs}; len = {len(outputs)}")
-             #   print(f"batch_labels  in CV = {batch_labels}; len = {len(batch_labels)}")
-=======
                 
 
                 if Parameters.phenotype == "ogt":
@@ -157,7 +142,6 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                     if outputs.ndimension() == 1:  
                         outputs = outputs.unsqueeze(0)  
 
->>>>>>> 2a7ce6a63810fc3651fe4de9f90697ede9ca65c4
                 loss = criterion(outputs, batch_labels)
 
                 loss.backward()
@@ -176,11 +160,7 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                 probabilities = torch.sigmoid(test_outputs).squeeze()  # Convert logits to probabilities and remove unnecessary dimensions
                 # Apply a threshold of 0.5 to convert probabilities to binary predictions
                 test_predictions = (probabilities > 0.5).int() # Convert probabilities to 0 or 1
-<<<<<<< HEAD
-            elif phenotype == "ogt":
-=======
             elif Parameters.phenotype == "ogt":
->>>>>>> 2a7ce6a63810fc3651fe4de9f90697ede9ca65c4
                 probabilities = torch.nn.functional.softmax(test_outputs).squeeze()
                 test_predictions = torch.argmax(probabilities, dim=1)
 
@@ -197,12 +177,7 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                 df1['false_positive_rate'] = d_gtdb_train.loc[test_idx, 'false_positive_rate'].values
             df1['predictor'] = "SetTransformer"
 
-<<<<<<< HEAD
-            model_name =  "SetTransformer"
-            csv_filename = f"set_transformer/resuls_SetTransformer/prediction_probabilities_phenotype_{phenotype}_cross_valid_fold_{fold}_{model_name}_indPoints_{Parameters.num_inds}.csv"
-=======
             csv_filename = f"{save_dir}/prediction_probabilities_cross_valid_fold_{fold}_{MODEL_NAME}_indPoints_{Parameters.num_inds}.csv"
->>>>>>> 2a7ce6a63810fc3651fe4de9f90697ede9ca65c4
             df1.to_csv(csv_filename, index=False, sep="\t", header=True)
 
         print(f"Fold {fold+1} Accuracy: {test_accuracy:.4f}")
@@ -295,11 +270,7 @@ def test(net, X_test, y_test, d_gtdb_test, Parameters, device, save_dir):
 
     df2 = pd.concat(df_list, ignore_index=True)
 
-<<<<<<< HEAD
-    csv_filename = f"set_transformer/resuls_SetTransformer/prediction_probabilities_phenotype_{phenotype}_holdout_test_{model_name}_indPoints_{Parameters.num_inds}.csv"
-=======
     csv_filename = f"{save_dir}/prediction_probabilities_holdout_test_{MODEL_NAME}_indPoints_{Parameters.num_inds}.csv"
->>>>>>> 2a7ce6a63810fc3651fe4de9f90697ede9ca65c4
     df2.to_csv(csv_filename, index=False, sep="\t", header=True)
 
     avg_loss = total_loss / len(test_loader)
