@@ -3,7 +3,7 @@ import torch
 import argparse
 from collections import namedtuple
 
-from utils.utils import read_ogt_data, process_aerob_dataset
+from utils.utils import read_ogt_data, process_aerob_dataset, str2bool
 from set_transformer.train_test_func import cross_validation, train, test
 
 """
@@ -52,25 +52,35 @@ def process_args():
     parser.add_argument("--num_epochs", type=int, required=True, help="Number of epochs for training.")
     parser.add_argument("--phenotype", type=str, required=True, help="Phenotype for the clasification task (aerob/ogt).")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size.")
-    parser.add_argument("--data_filename_train", type=str, required=False, help="Filename of the train dataset.", default = "data_aerob/all_gene_annotations.added_incompleteness_and_contamination.subsampled.training.tsv")
-    parser.add_argument("--data_filename_test", type=str, required=False, help="Filename of the test dataset.", default="data_aerob/all_gene_annotations.added_incompleteness_and_contamination.subsampled.testing.tsv")
+    parser.add_argument("--data_filename_train", type=str, required=False, help="Filename of the train dataset.", default = "data_aerob/all_gene_annotations.added_incompleteness_and_contamination.training.tsv")
+    parser.add_argument("--data_filename_test", type=str, required=False, help="Filename of the test dataset.", default="data_aerob/all_gene_annotations.added_incompleteness_and_contamination.testing.tsv")
     parser.add_argument("--y_filename", type=str, required=False, help="Filename of the label dataset.", default="data_aerob/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv")
-    
+    parser.add_argument("--ogt_continuous_flag", type=str2bool, required=False, help="Flag for using continuous predictions for the OGT data.", default="false")
     # Parse arguments
     args = parser.parse_args()
-    Parameters = namedtuple("Parameters", ["num_inds", "learning_rate", "num_epochs", "phenotype", "batch_size", "data_filename_train", "data_filename_test", "y_filename"])
-    return Parameters(num_inds=args.num_inds, learning_rate=args.learning_rate, num_epochs=args.num_epochs, phenotype=args.phenotype, batch_size=args.batch_size, data_filename_train = args.data_filename_train, data_filename_test=args.data_filename_test, y_filename=args.y_filename)
+    Parameters = namedtuple("Parameters", ["num_inds", "learning_rate", "num_epochs", "phenotype", "batch_size", "data_filename_train", "data_filename_test", "y_filename", "ogt_continuous_flag"])
+    return Parameters(num_inds=args.num_inds, learning_rate=args.learning_rate, num_epochs=args.num_epochs, phenotype=args.phenotype, batch_size=args.batch_size, data_filename_train = args.data_filename_train, data_filename_test=args.data_filename_test, y_filename=args.y_filename, ogt_continuous_flag=args.ogt_continuous_flag)
     
-def create_directory_for_results(phenotype):
+def create_directory_for_results(Parameters):
+    phenotype = Parameters.phenotype
     # Directory to save 
     save_dir = os.path.join('results', 'SetTransformer', phenotype)
+
+    if phenotype == 'ogt': #create sub-directories for discrete/continuous types of predictions
+        if Parameters.ogt_continuous_flag == True:
+            save_dir = os.path.join(save_dir, 'continuous_predict')
+        else:
+            save_dir = os.path.join(save_dir, 'discrete_predict')   
+
+    print(f"save_dir = {save_dir}")         
+
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
-    save_dir_train_mod = os.path.join('results', 'SetTransformer', phenotype, 'trained_models')
+
+    save_dir_train_mod = os.path.join(save_dir, 'trained_models')
     if not os.path.isdir(save_dir_train_mod):
         os.makedirs(save_dir_train_mod)
-    return save_dir    
-
+    return save_dir   
 
 if __name__ == '__main__':
 
@@ -80,7 +90,7 @@ if __name__ == '__main__':
     # 2. Process train and test datasets
     print(f"\nProcessing train and test datasets for {Parameters.phenotype} phenotype...\n")
     if Parameters.phenotype == "ogt":
-        X_train, X_train_column_names, y_train, X_test, X_test_column_names, y_test, categories_linspace = read_ogt_data(device, NUM_CLASSES_OGT)
+        X_train, X_train_column_names, y_train, X_test, X_test_column_names, y_test, categories_linspace = read_ogt_data(device, NUM_CLASSES_OGT, Parameters.ogt_continuous_flag)
         d_gtdb_train = None
         d_gtdb_test = None
         num_classes = NUM_CLASSES_OGT
@@ -96,7 +106,7 @@ if __name__ == '__main__':
     print(f"\nNumber of classes in the classification task is {num_classes}...\n")    
 
     # 3. Create a directory to save the outputs
-    save_dir = create_directory_for_results(Parameters.phenotype)
+    save_dir = create_directory_for_results(Parameters)
 
     # 4. Run cross-validation on the train dataset
     print(f"Running cross-validation on the train dataset...")

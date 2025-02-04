@@ -70,11 +70,6 @@ class ISAB(nn.Module):
         #print(f"forw in ISAB X shape = {X.shape}")
         mtr = self.I.repeat(X.size(0), 1, 1)
         
-      #  print(">_______")
-      #  print(f"I shape = {mtr.shape}")
-      #  print(f"X shape = {X.shape}")
-      #  print("I device:", self.I.repeat(X.size(0), 1, 1).device)
-       # print("X device:", X.device)
         H = self.mab0(self.I.repeat(X.size(0), 1, 1), X).to(device)
      #   print(f"H shape = {H.shape}")
      #   print("_______<")

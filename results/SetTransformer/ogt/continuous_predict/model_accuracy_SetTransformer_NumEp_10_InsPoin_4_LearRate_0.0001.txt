@@ -1,0 +1,2 @@
+Cross-Validation Accuracy = [1013.08923, 987.0715, 989.9071, 992.7864, 1053.2247]
+Mean Cross-Validation Accuracy = 1007.2158203125

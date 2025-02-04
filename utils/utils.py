@@ -5,6 +5,7 @@ import logging
 import pandas as pd
 import numpy as np
 import polars as pl
+import argparse
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
@@ -13,7 +14,17 @@ from sklearn.decomposition import PCA
 from matplotlib.colors import ListedColormap
 from sklearn.preprocessing import MaxAbsScaler
 
-def read_ogt_data(device, num_class):
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def read_ogt_data(device, num_class, ogt_continuous_flag):
     # Read the csv file with keggs
     try:
         filename = "data_ogt/kegg.csv"
@@ -84,9 +95,14 @@ def read_ogt_data(device, num_class):
     categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_class)
 
     y_train_np = y_train.cpu().numpy() if y_train.is_cuda else y_train.numpy()
-    y_train = np.digitize(y_train_np, categories_linspace, right=True)
     y_test_np = y_test.cpu().numpy() if y_test.is_cuda else y_test.numpy()
-    y_test = np.digitize(y_test_np, categories_linspace, right=True)
+    if ogt_continuous_flag == True:
+        y_train = y_train_np[:]
+        y_test = y_test_np[:]
+    else:
+        y_train = np.digitize(y_train_np, categories_linspace, right=True)
+        y_test = np.digitize(y_test_np, categories_linspace, right=True)
+    
 
     # Convert labels to the right format
     y_test  = torch.tensor(y_test).to(device)
@@ -100,7 +116,7 @@ def process_aerob_dataset(X_filename, y_filename, device):
     d3_train, X_train, y_train = read_xy_data(X_filename, y_filename)
     d_gtdb_train = d3_train.to_pandas()
 
-    X_train = X_train.drop(columns=["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
+   # X_train = X_train.drop(columns=["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
     X_train_column_names = X_train.columns
 
     matrix = X_train.values

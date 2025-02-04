@@ -4,7 +4,7 @@ import pandas as pd
 
 from sklearn.model_selection import GroupKFold
 from sklearn.model_selection import KFold
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, mean_squared_error
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -23,8 +23,12 @@ def train(X_train, y_train, Parameters, device, num_classes, save_dir):
         dim_output = 1
         loss_function = torch.nn.BCEWithLogitsLoss() #torch.nn.CrossEntropyLoss()  # Example for classification
     elif Parameters.phenotype == "ogt": 
-        dim_output = num_classes
-        loss_function = torch.nn.CrossEntropyLoss()
+        if Parameters.ogt_continuous_flag == False:
+            dim_output = num_classes
+            loss_function = torch.nn.CrossEntropyLoss()
+        else:
+            dim_output = 1    
+            loss_function = torch.nn.MSELoss()
 
     dataset = TensorDataset(X_train, y_train)
     dataloader = DataLoader(dataset, batch_size=Parameters.batch_size, shuffle=True, drop_last=True)
@@ -81,15 +85,24 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
     """
     num_folds = 5
 
+    from sklearn.model_selection import GroupShuffleSplit
+
     if Parameters.phenotype == "aerob":
         groups = d_gtdb_train['family'].to_list()
-        group_kfold = GroupKFold(n_splits=num_folds)  
-        fold_train_test_ind = enumerate(group_kfold.split(X_train, y_train, groups=groups))
+       # group_kfold = GroupKFold(n_splits=num_folds)  
+       # fold_train_test_ind = enumerate(group_kfold.split(X_train, y_train, groups=groups))
+
+        gss = GroupShuffleSplit(n_splits=num_folds, test_size=0.2, random_state=42)
+        fold_train_test_ind = list(enumerate(gss.split(X_train, y_train, groups=groups)))
+
         dim_output = 1
     elif Parameters.phenotype == "ogt": 
-        kfold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
+        kfold = KFold(n_splits=num_folds, shuffle=True)#, random_state=42)
         fold_train_test_ind = enumerate(kfold.split(X_train, y_train))
-        dim_output = num_classes
+        if Parameters.ogt_continuous_flag == False:
+            dim_output = num_classes
+        else:
+            dim_output = 1    
 
     D = X_train.shape[1]
 
@@ -105,21 +118,31 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
 
         # Split the data into training and testing subsets
         train_data = X_train[train_idx].clone().detach().to(torch.float32).to(device)
-        train_labels = y_train[train_idx].clone().detach().to(torch.long).to(device)
         test_data = X_train[test_idx].clone().detach().to(torch.float32).to(device)
-        test_labels = y_train[test_idx].clone().detach().to(torch.long).to(device)
+        if Parameters.phenotype == 'ogt' and Parameters.ogt_continuous_flag == True: 
+            train_labels = y_train[train_idx].clone().detach().to(torch.float32).to(device)
+            test_labels = y_train[test_idx].clone().detach().to(torch.float32).to(device)
+        else:
+            train_labels = y_train[train_idx].clone().detach().to(torch.long).to(device)
+            test_labels = y_train[test_idx].clone().detach().to(torch.long).to(device)
 
         # Create DataLoader for mini-batch training
         train_dataset = torch.utils.data.TensorDataset(train_data, train_labels)
+       # print(f"train_dataset = {train_dataset}")
+       # print(f"train_labels = {train_labels}")
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=Parameters.batch_size, shuffle=True) #True
 
         net = SetTransformer(D, K, dim_output, Parameters.num_inds)#.cuda()
         net = net.to(device)
         optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)
         if Parameters.phenotype == "ogt":
-            criterion = torch.nn.CrossEntropyLoss()
+            if Parameters.ogt_continuous_flag == False:
+                criterion = torch.nn.CrossEntropyLoss()
+            else:
+                criterion = torch.nn.MSELoss()    
         elif Parameters.phenotype == "aerob":
             criterion = torch.nn.BCEWithLogitsLoss() 
+
 
         # Training loop
         net.train()
@@ -138,9 +161,15 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                 
 
                 if Parameters.phenotype == "ogt":
-                    batch_labels = batch_labels.long()
+                    if Parameters.ogt_continuous_flag == False:
+                        batch_labels = batch_labels.long()
+                    else:
+                        batch_labels = batch_labels.float()    
                     if outputs.ndimension() == 1:  
                         outputs = outputs.unsqueeze(0)  
+
+              #  print(f"outputs = {outputs}") 
+              #  print(f"batch_labels = {batch_labels}")       
 
                 loss = criterion(outputs, batch_labels)
 
@@ -161,15 +190,27 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                 # Apply a threshold of 0.5 to convert probabilities to binary predictions
                 test_predictions = (probabilities > 0.5).int() # Convert probabilities to 0 or 1
             elif Parameters.phenotype == "ogt":
-                probabilities = torch.nn.functional.softmax(test_outputs).squeeze()
-                test_predictions = torch.argmax(probabilities, dim=1)
+                if Parameters.ogt_continuous_flag == False:
+                    probabilities = torch.nn.functional.softmax(test_outputs).squeeze()
+                    test_predictions = torch.argmax(probabilities, dim=1)
+                else:
+                    test_predictions = test_outputs.squeeze()[:]    
 
-            test_accuracy = accuracy_score(test_labels.cpu().numpy(), test_predictions.cpu().numpy())
+            if Parameters.phenotype == "ogt" and Parameters.ogt_continuous_flag == True:
+                print(f"test_labels = {test_labels.shape}")
+                print(f"test_labels = {test_predictions.shape}")
+                test_accuracy = mean_squared_error(test_labels.cpu().numpy(), test_predictions.cpu().numpy())
+            else:    
+                test_accuracy = accuracy_score(test_labels.cpu().numpy(), test_predictions.cpu().numpy())
 
-            probabilities_cpu = probabilities.cpu().numpy()
-            df1 = pd.DataFrame(probabilities_cpu)
-            df1['prediction'] = test_predictions.cpu().numpy()
-            df1['y_actual'] = test_labels.cpu().numpy()
+            if Parameters.phenotype == "ogt" and Parameters.ogt_continuous_flag == True:
+                df1 = pd.DataFrame(test_predictions.cpu().numpy(), columns=["prediction"])
+                df1['y_actual'] = test_labels.cpu().numpy()
+            else:
+                probabilities_cpu = probabilities.cpu().numpy()
+                df1 = pd.DataFrame(probabilities_cpu)
+                df1['prediction'] = test_predictions.cpu().numpy()
+                df1['y_actual'] = test_labels.cpu().numpy()
 
             if Parameters.phenotype == "aerob":
                 df1['accession'] = d_gtdb_train.loc[test_idx, 'accession'].values
