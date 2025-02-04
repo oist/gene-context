@@ -1,0 +1,111 @@
+---
+title: "DownSampling visualisation"
+output: html_document
+date: "2024-12-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+
+```{r}
+library(data.table)
+library(ggplot2)
+theme_set(theme_bw())
+```
+
+```{r}
+#setwd("~/olgab/bacterial_dating_aerobic_predictor")#fix please if need
+```
+
+
+# DownSampling
+
+
+
+```{r}
+# Read cv probabities of the 2-class predictions
+system('ls -d data/SS.cv_data/*csv |grep -v new_class > data/cv_data_files_SS.txt')
+files = fread('data/cv_data_files_SS.txt', header=F)
+d1 = files[grep('Perceptron', invert = T, V1),fread(input=V1, header=T, sep='\t', colClasses=list(double='y_actual')), by=V1]
+setnames(d1, 'probability_0', 'prob_anaerobe')
+setnames(d1, 'probability_1', 'prob_aerobe')
+
+d = d1
+dim(d)
+d[1:3]
+```
+
+
+
+```{r}
+d[, dataset := '2=anaerobe_vs_aerobe']
+d[, ds_status := gsub(".*_\\d_(.*)\\.csv", '\\1', V1)]
+d[1:3]
+```
+
+```{r}
+unique(d$ds_status)
+```
+
+
+
+```{r}
+d[, V1 := NULL]
+d[1:3]
+```
+
+
+```{r}
+accuracies = d[,.(
+    tp = sum(prediction==1 & y_actual==1),
+    tn = sum(prediction==0 & y_actual==0),
+    fp = sum(prediction==1 & y_actual==0),
+    fn = sum(prediction==0 & y_actual==1)
+), by=list(predictor, false_negative_rate, false_positive_rate, dataset, ds_status)]
+accuracies[, accuracy := (tp+tn)/(tp+tn+fp+fn)]
+accuracies[1:3]
+```
+
+
+
+## Overall accuracies
+
+```{r}
+overall_accuracies = accuracies[, .(accuracy_overall=mean(accuracy)*100), by=list(predictor)][order(-accuracy_overall)]
+overall_accuracies
+```
+
+
+## Plot accuracy with increasing removal of gene families (false negative rate)
+
+```{r}
+dataset_names = sort(unique(d$dataset))
+# Order the predictors by accuracy
+accuracies[, predictor := factor(predictor, levels=overall_accuracies$predictor)]
+```
+
+
+```{r}
+options(repr.plot.width=12, repr.plot.height=8)
+
+qplot(
+  data=accuracies[dataset=='2=anaerobe_vs_aerobe'][grep('Isotonic',predictor,invert=T)][grep('Sigmoid',predictor,invert=T)][grep('GaussianNB',predictor,invert=T)][false_positive_rate %in% c(0,0.1,0.2,0.5)], 
+  false_negative_rate, 
+  accuracy, 
+  ylim=c(0.74,1), xlab='gene removal rate',
+  colour=factor(false_positive_rate*100))+
+  geom_line()+
+  facet_wrap(~ds_status)+
+  labs(colour='Extra genes rate (%)')
+#ggsave('results/anaerobe_vs_aerobe.accuracy_vs_gene_removal_rate_ORIGINAL_DS_xbg.svg', width=12, height=8)
+```
+
+
+
