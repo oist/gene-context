@@ -49,6 +49,8 @@ def process_args():
     # Add arguments
     parser.add_argument("--num_inds", type=int, required=True, help="Number of inducing point in SetTransformer.")
     parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate.")
+    parser.add_argument("--num_heads", type=int, required=False, default = 4, help="Number of heads.")
+    parser.add_argument("--embed_dim", type=int, required=False, default = 128, help="Embedding dimention.")
     parser.add_argument("--num_epochs", type=int, required=True, help="Number of epochs for training.")
     parser.add_argument("--phenotype", type=str, required=True, help="Phenotype for the clasification task (aerob/ogt).")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size.")
@@ -58,8 +60,8 @@ def process_args():
     parser.add_argument("--ogt_continuous_flag", type=str2bool, required=False, help="Flag for using continuous predictions for the OGT data.", default="false")
     # Parse arguments
     args = parser.parse_args()
-    Parameters = namedtuple("Parameters", ["num_inds", "learning_rate", "num_epochs", "phenotype", "batch_size", "data_filename_train", "data_filename_test", "y_filename", "ogt_continuous_flag"])
-    return Parameters(num_inds=args.num_inds, learning_rate=args.learning_rate, num_epochs=args.num_epochs, phenotype=args.phenotype, batch_size=args.batch_size, data_filename_train = args.data_filename_train, data_filename_test=args.data_filename_test, y_filename=args.y_filename, ogt_continuous_flag=args.ogt_continuous_flag)
+    Parameters = namedtuple("Parameters", ["num_inds", "learning_rate", "num_heads", "embed_dim", "num_epochs", "phenotype", "batch_size", "data_filename_train", "data_filename_test", "y_filename", "ogt_continuous_flag"])
+    return Parameters(num_inds=args.num_inds, learning_rate=args.learning_rate, num_heads=args.num_heads, embed_dim=args.embed_dim, num_epochs=args.num_epochs, phenotype=args.phenotype, batch_size=args.batch_size, data_filename_train = args.data_filename_train, data_filename_test=args.data_filename_test, y_filename=args.y_filename, ogt_continuous_flag=args.ogt_continuous_flag)
     
 def create_directory_for_results(Parameters):
     phenotype = Parameters.phenotype
@@ -70,17 +72,20 @@ def create_directory_for_results(Parameters):
         if Parameters.ogt_continuous_flag == True:
             save_dir = os.path.join(save_dir, 'continuous_predict')
         else:
-            save_dir = os.path.join(save_dir, 'discrete_predict')   
-
-    print(f"save_dir = {save_dir}")         
+            save_dir = os.path.join(save_dir, 'discrete_predict')         
 
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
 
-    save_dir_train_mod = os.path.join(save_dir, 'trained_models')
-    if not os.path.isdir(save_dir_train_mod):
-        os.makedirs(save_dir_train_mod)
-    return save_dir   
+    subdirect_with_param = f"numHeads_{Parameters.num_heads}_embedDim__{Parameters.embed_dim}_learnRate_{Parameters.learning_rate}_num_epochs_{Parameters.num_epochs}"
+    save_subdir = os.path.join(save_dir, subdirect_with_param)
+    if not os.path.isdir(save_subdir):
+        os.makedirs(save_subdir)
+
+    save_subdir_train_mod = os.path.join(save_subdir, 'trained_models')
+    if not os.path.isdir(save_subdir_train_mod):
+        os.makedirs(save_subdir_train_mod)
+    return save_subdir   
 
 if __name__ == '__main__':
 
