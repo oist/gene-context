@@ -34,7 +34,7 @@ def train(X_train, y_train, Parameters, device, num_classes, save_dir):
     dataloader = DataLoader(dataset, batch_size=Parameters.batch_size, shuffle=True, drop_last=True)
 
     D = X_train.shape[1] # Example input dimension (features per sample)
-    net = SetTransformer(D, K, dim_output)#.cuda()
+    net = SetTransformer(D, K, dim_output, Parameters.num_inds, Parameters.dim_hidden, Parameters.num_heads)#.cuda()
     net = net.to(device)
    
     optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)#optim.Adam(net.parameters(), lr=lr)
@@ -128,8 +128,6 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
 
         # Create DataLoader for mini-batch training
         train_dataset = torch.utils.data.TensorDataset(train_data, train_labels)
-       # print(f"train_dataset = {train_dataset}")
-       # print(f"train_labels = {train_labels}")
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=Parameters.batch_size, shuffle=True) #True
 
         net = SetTransformer(D, K, dim_output, Parameters.num_inds)#.cuda()

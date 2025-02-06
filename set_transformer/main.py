@@ -77,7 +77,7 @@ def create_directory_for_results(Parameters):
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
 
-    subdirect_with_param = f"numHeads_{Parameters.num_heads}_embedDim__{Parameters.embed_dim}_learnRate_{Parameters.learning_rate}_num_epochs_{Parameters.num_epochs}"
+    subdirect_with_param = f"numHeads_{Parameters.num_heads}_embedDim_{Parameters.embed_dim}_learnRate_{Parameters.learning_rate}_num_epochs_{Parameters.num_epochs}"
     save_subdir = os.path.join(save_dir, subdirect_with_param)
     if not os.path.isdir(save_subdir):
         os.makedirs(save_subdir)
