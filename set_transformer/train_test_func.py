@@ -141,6 +141,8 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
         elif Parameters.phenotype == "aerob":
             criterion = torch.nn.BCEWithLogitsLoss() 
 
+        print(f"criterion = {criterion}")    
+
 
         # Training loop
         net.train()
@@ -174,6 +176,8 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
+                print(f"epoch_loss = {epoch_loss}")
+                print(f"len(train_loader) = {len(train_loader)}")
             print(f"Fold {fold + 1} | Epoch {epoch + 1}/{Parameters.num_epochs} | Loss: {epoch_loss / len(train_loader):.4f}")
 
         
