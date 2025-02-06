@@ -170,8 +170,10 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
                         outputs = outputs.unsqueeze(0)  
 
               #  print(f"outputs = {outputs}") 
-              #  print(f"batch_labels = {batch_labels}")       
-
+              #  print(f"batch_labels = {batch_labels}")   
+                     
+                print(f"outputs = {outputs}")
+                print(f"batch_labels = {batch_labels}")
                 loss = criterion(outputs, batch_labels)
                 print(f"loss = {loss}")
 
