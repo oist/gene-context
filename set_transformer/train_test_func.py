@@ -106,6 +106,8 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
 
     D = X_train.shape[1]
 
+    print(f"device = {device}")
+
     net = SetTransformer(D, K, dim_output, Parameters.num_inds)
     net = net.to(device)
     num_params = count_parameters(net)
@@ -147,12 +149,15 @@ def cross_validation(X_train, y_train, d_gtdb_train, Parameters, device, num_cla
 
         # Training loop
         net.train()
+        print(f"net = {net}")
         for epoch in range(Parameters.num_epochs):
             epoch_loss = 0.0
             for batch_data, batch_labels in train_loader:
                 optimizer.zero_grad()
 
                 batch_X = batch_data.unsqueeze(1)
+
+                print(f"batch_X = {batch_X}")
                 
                 outputs = net(batch_X)
                 
