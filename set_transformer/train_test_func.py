@@ -34,7 +34,7 @@ def train(X_train, y_train, Parameters, device, num_classes, save_dir):
     dataloader = DataLoader(dataset, batch_size=Parameters.batch_size, shuffle=True, drop_last=True)
 
     D = X_train.shape[1] # Example input dimension (features per sample)
-    net = SetTransformer(D, K, dim_output, Parameters.num_inds, Parameters.dim_hidden, Parameters.num_heads)#.cuda()
+    net = SetTransformer(D, K, dim_output, Parameters.num_inds, Parameters.embed_dim, Parameters.num_heads)#.cuda()
     net = net.to(device)
    
     optimizer = optim.AdamW(net.parameters(), lr=Parameters.learning_rate, weight_decay=0.01)#optim.Adam(net.parameters(), lr=lr)
