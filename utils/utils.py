@@ -6,11 +6,13 @@ import pandas as pd
 import numpy as np
 import polars as pl
 import argparse
+from matplotlib import cm
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
 from matplotlib.lines import Line2D
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from matplotlib.colors import ListedColormap
 from sklearn.preprocessing import MaxAbsScaler
 
@@ -112,8 +114,8 @@ def read_ogt_data(device, num_class, ogt_continuous_flag):
 
     return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), categories_linspace
 
-def process_aerob_dataset(X_filename, y_filename, device):
-    d3_train, X_train, y_train = read_xy_data(X_filename, y_filename)
+def process_aerob_dataset(X_filename, y_filename, device, remove_noise):
+    d3_train, X_train, y_train = read_xy_data(X_filename, y_filename, remove_noise)
     d_gtdb_train = d3_train.to_pandas()
 
    # X_train = X_train.drop(columns=["family_right", "phylum_right", "class_right", "order_right", "genus_right"])
@@ -124,8 +126,8 @@ def process_aerob_dataset(X_filename, y_filename, device):
     X_train = X_data.float().to(device)
     X_train_numpy = X_train.cpu().numpy()
     scaler = MaxAbsScaler()
-    X_train_scaled = scaler.fit_transform(X_train_numpy)
-    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device).float()
+   # X_train_scaled = scaler.fit_transform(X_train_numpy)
+    X_train = torch.tensor(X_train_numpy, dtype=torch.float32).to(device).float()
 
     y_train = torch.tensor(y_train.values).to(device)
     y_train = y_train.squeeze(1)
@@ -134,7 +136,7 @@ def process_aerob_dataset(X_filename, y_filename, device):
     return X_train, X_train_column_names, y_train, d_gtdb_train
 
 
-def read_xy_data(data_filename, y_filename):
+def read_xy_data(data_filename, y_filename, remove_noise = True):
 
     try:
         gtdb = pl.concat([
@@ -169,11 +171,19 @@ def read_xy_data(data_filename, y_filename):
 
     d3 = d2.join(y1, on="accession", how="inner") # Inner join because test accessions are in y1 but not in d2
 
+    if remove_noise == True:
+        d3 = d3.filter(pl.col("false_negative_rate") == 0)
+        d3 = d3.filter(pl.col("false_positive_rate") == 0)
+
     print(f"Counts of each class in training/test data: {d3.group_by(target_column).agg(pl.len())}")
     
     d_gtdb = d3.to_pandas()
     X = d3.select(pl.exclude(['accession',target_column,'phylum','class','order','family','genus','false_negative_rate','false_positive_rate'])).to_pandas()
-    
+
+    # Blacklist these as they aren't in the current ancestral file, not sure why
+    X = X.drop(['COG0411', 'COG0459', 'COG0564', 'COG1344', 'COG4177'], axis=1)
+
+
     # Generate y vector with 0s, and 1s
     y = d3.select(
         pl.when(pl.col(target_column) == 'anaerobe').then(0)
@@ -237,7 +247,7 @@ def generate_colors_from_colormap(colormap_name, N):
    
    return listed_cmap, colors
 
-def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors):
+def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None):
    scaler = MaxAbsScaler()
 
    # Fit and transform the data
@@ -254,40 +264,73 @@ def pca_run_and_plot(X_train_val, y_train_val, category_names, n_compon, colors)
    print("Explained variance ratio:", explained_variance_ratio)
    print("Total explained variance:", sum(explained_variance_ratio))
 
-   # Ensure 'y_train_val' has unique, valid labels
-   unique_ids = np.unique(y_train_val)
+   listed_cmap = None
 
-   # Check if 'colors' is already a ListedColormap or needs to be generated
-   if isinstance(colors, ListedColormap):
-       listed_cmap = colors  # Use the passed ListedColormap directly
+  # plt.figure(figsize=(4, 4))
+   if y_train_val is not None:
+       #Ensure 'y_train_val' has unique, valid labels
+       unique_ids = np.unique(y_train_val)
+
+       # Check if 'colors' is already a ListedColormap or needs to be generated
+       if isinstance(colors, ListedColormap):
+           listed_cmap = colors  # Use the passed ListedColormap directly
+       else:
+           # Generate colors based on the unique labels in y_train_val
+           
+           listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
+       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=0.6, s = 10, label = category_names, cmap=listed_cmap)
+       categ_name_dict = defaultdict(int)
+       for i in range(len(y_train_val)):
+           categ_id = y_train_val[i]
+           #if categ_id not in categ_name_dict.keys():
+           categ_id = int(categ_id)
+           categ_name_dict[categ_id] = category_names[i]
+
+       # Create legend handles and labels based on unique labels
+       handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
+       labels = [categ_name_dict[unique_id] for unique_id in unique_ids]
+
+       plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5) #, bbox_to_anchor=(1.05, 1)
    else:
-       # Generate colors based on the unique labels in y_train_val
-       from matplotlib import cm
-       listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
-
-   plt.figure(figsize=(8, 6))
-   scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=1, s = 10, label = category_names, cmap=listed_cmap)
+       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], alpha=0.6, s = 10)
+          
    plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0],2)}")
    plt.ylabel(f"PC 2; var = {round(explained_variance_ratio[1],2)}")
+   plt.title("PCA space")
+   plt.grid(True, zorder=1)
+   #plt.show()
 
-   categ_name_dict = defaultdict(int)
-   for i in range(len(y_train_val)):
-       categ_id = y_train_val[i]
-       #if categ_id not in categ_name_dict.keys():
-       categ_id = int(categ_id)
-       categ_name_dict[categ_id] = category_names[i]
-
-    # Create legend handles and labels based on unique labels
-   handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
-   labels = [categ_name_dict[unique_id] for unique_id in unique_ids]
-
-   plt.legend(handles=handles, labels=labels ,loc='lower left', bbox_to_anchor=(1.05, 1), title="Categories", ncol=5)
-   
    return listed_cmap    
 
 
 false_posit_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 false_negat_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+
+
+def tsne_plot(X_train, y_train = None):
+    scaler = MaxAbsScaler()
+
+    # Fit and transform the data
+    X_train_scal = scaler.fit_transform(X_train)
+
+    colors = ListedColormap(["tab:blue", "tab:red"])
+
+    # Initialize and apply t-SNE
+    tsne = TSNE(n_components=2, perplexity=50, learning_rate=100, max_iter=3000, init='pca') 
+
+   # plt.figure(figsize=(4, 4))
+
+    X_tsne = tsne.fit_transform(X_train_scal) 
+
+    print(f"Shape of the projected data = {X_tsne.shape}")
+
+    # Visualize the t-SNE output
+    if y_train is not None:
+        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=0.5, s = 10, cmap=colors)
+    else:
+        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s = 10)
+    plt.title("tSNE space")    
+    plt.grid(True, zorder=1)      
 
 
 def generate_tables(grouped):
@@ -416,5 +459,5 @@ def plot_results(column_name, num_ind_points, fp_to_plot, tables_average_folds):
 
     plt.title(f"{column_name} for SetTransformer with {num_ind_points} inducing points")
     
-    plt.grid(True)
+    plt.grid(True, zorder=1)
     plt.show()  
