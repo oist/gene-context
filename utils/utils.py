@@ -114,6 +114,30 @@ def read_ogt_data(device, num_class, ogt_continuous_flag):
 
     return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), categories_linspace
 
+def read_diderm_data(X_filename, y_filename, device):
+    df_x_data = pd.read_csv(X_filename,sep="\t")
+
+    X_train_column_names = df_x_data.columns
+
+    df_y_labels = pd.read_csv(y_filename,sep="\t")
+
+    df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
+
+    X_val = df_merged.drop(columns=['high_throughput_dermy', 'accession']).values
+    X_val = torch.tensor(X_val)
+    X_val = X_val.float().to(device)
+    X_val_numpy = X_val.cpu().numpy()
+ #   scaler = MaxAbsScaler()
+   # X_val_scaled = scaler.fit_transform(X_val_numpy)
+    X_val = torch.tensor(X_val_numpy, dtype=torch.float32).to(device)
+
+    y_label = df_merged["high_throughput_dermy"].map({'Diderm': 0, 'Monoderm': 1})
+    y_label = torch.tensor(y_label.values).to(device)
+   # y_label = y_label.squeeze(1)
+    y_label = y_label.float()
+
+    return X_val, y_label, X_train_column_names[1:]
+
 def process_aerob_dataset(X_filename, y_filename, device, remove_noise):
     d3_train, X_train, y_train = read_xy_data(X_filename, y_filename, remove_noise)
     d_gtdb_train = d3_train.to_pandas()
@@ -307,16 +331,18 @@ false_posit_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 false_negat_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 
-def tsne_plot(X_train, y_train = None):
+def tsne_plot(X_train, y_train = None, colors = None):
     scaler = MaxAbsScaler()
 
     # Fit and transform the data
     X_train_scal = scaler.fit_transform(X_train)
 
-    colors = ListedColormap(["tab:blue", "tab:red"])
 
     # Initialize and apply t-SNE
     tsne = TSNE(n_components=2, perplexity=50, learning_rate=100, max_iter=3000, init='pca') 
+
+    if colors is None:
+        colors = ListedColormap(["tab:green", "tab:purple"])
 
    # plt.figure(figsize=(4, 4))
 

@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import xgboost
 from xgboost import XGBClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MaxAbsScaler
@@ -17,17 +18,19 @@ from sklearn.feature_selection import SelectFromModel
 
 THREADS = 64
 
-def xgboost_train_accur(X_train, y_train, X_test, y_test):
-    pipe = make_pipeline(MaxAbsScaler(),XGBClassifier(n_jobs=THREADS))
-    cv_scores = cross_val_score(pipe, X_train, y_train, cv=5, scoring='accuracy')
+def xgboost_train_accur(X_train, y_train, X_test, y_test, device):
+
+    pipe = make_pipeline(MaxAbsScaler(), XGBClassifier(n_jobs=THREADS if device == "cpu" else None, tree_method="gpu_hist" if device == "cpu" else "hist"))
+    
+    cv_scores = cross_val_score(pipe, X_train.cpu(), y_train.cpu(), cv=5, scoring='accuracy')
     cv_mean = np.mean(cv_scores)
     cv_std = np.std(cv_scores)
-    pipe.fit(X_train, y_train)
-    train_accuracy = accuracy_score(y_train, pipe.predict(X_train))
-    test_accuracy = accuracy_score(y_test, pipe.predict(X_test))
+    pipe.fit(X_train.cpu(), y_train.cpu())
+    train_accuracy = accuracy_score(y_train.cpu(), pipe.predict(X_train.cpu()))
+    test_accuracy = accuracy_score(y_test.cpu(), pipe.predict(X_test.cpu()))
     return test_accuracy, cv_mean
 
-def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indices, baseline_accuracy, feat_step):
+def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indices, baseline_accuracy, feat_step, device):
     cv_accur_arr = []
     test_accur_arr = []
     num_feat = range(1,len(sorted_indices),feat_step)
@@ -35,7 +38,7 @@ def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indic
         select_feat = list(sorted_indices[:N])
         X_train_select_feat = X_train[:, select_feat]
         X_test_select_feat = X_test[:, select_feat]
-        test_accuracy, cv_accur_mean = xgboost_train_accur(X_train_select_feat, y_train, X_test_select_feat, y_test)
+        test_accuracy, cv_accur_mean = xgboost_train_accur(X_train_select_feat, y_train, X_test_select_feat, y_test, device)
         cv_accur_arr.append(cv_accur_mean)
         test_accur_arr.append(test_accuracy)
 
