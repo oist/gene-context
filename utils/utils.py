@@ -9,12 +9,18 @@ import argparse
 from matplotlib import cm
 import matplotlib.pyplot as plt
 from collections import defaultdict
+from sklearn.metrics import accuracy_score
 
 from matplotlib.lines import Line2D
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from matplotlib.colors import ListedColormap
 from sklearn.preprocessing import MaxAbsScaler
+
+from sklearn.model_selection import cross_val_predict, KFold
+from xgboost import XGBRegressor
+
+from sklearn.metrics import mean_squared_error,r2_score
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -26,7 +32,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-def read_ogt_data(device, num_class, ogt_continuous_flag):
+def read_ogt_data(device, num_class, ogt_continuous_flag, precence_only_flag = False):
     # Read the csv file with keggs
     try:
         filename = "data_ogt/kegg.csv"
@@ -67,8 +73,10 @@ def read_ogt_data(device, num_class, ogt_continuous_flag):
     X_data = torch.tensor(matrix)
     X_train = X_data.float().to(device)
     X_train_numpy = X_train.cpu().numpy()
+    if precence_only_flag == True:
+        X_train_numpy = (X_train_numpy > 0).astype(int)
     scaler = MaxAbsScaler()
-    X_train_scaled = scaler.fit_transform(X_train_numpy)
+    X_train_scaled = X_train_numpy#scaler.fit_transform(X_train_numpy)
     X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
 
     # Y test
@@ -86,8 +94,10 @@ def read_ogt_data(device, num_class, ogt_continuous_flag):
     X_data = torch.tensor(matrix)
     X_test = X_data.float().to(device)
     X_test_numpy = X_test.cpu().numpy()
-    scaler = MaxAbsScaler()
-    X_test_scaled = scaler.fit_transform(X_test_numpy)
+    if precence_only_flag == True:
+        X_test_numpy = (X_test_numpy > 0).astype(int)
+    #scaler = MaxAbsScaler()
+    X_test_scaled = X_test_numpy#scaler.fit_transform(X_test_numpy)
     X_test = torch.tensor(X_test_scaled, dtype=torch.float32).to(device)
 
     # Convert to 0-N categories
@@ -303,18 +313,23 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names =
            
            listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
        scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=0.6, s = 10, label = category_names, cmap=listed_cmap)
-       categ_name_dict = defaultdict(int)
-       for i in range(len(y_train_val)):
-           categ_id = y_train_val[i]
-           #if categ_id not in categ_name_dict.keys():
-           categ_id = int(categ_id)
-           categ_name_dict[categ_id] = category_names[i]
 
-       # Create legend handles and labels based on unique labels
-       handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
-       labels = [categ_name_dict[unique_id] for unique_id in unique_ids]
+       if category_names is not None:
+           categ_name_dict = defaultdict(int)
+           for i in range(len(y_train_val)):
+               categ_id = y_train_val[i]
+               #if categ_id not in categ_name_dict.keys():
+               categ_id = int(categ_id)
+               categ_name_dict[categ_id] = category_names[i]
+           labels = [categ_name_dict[unique_id] for unique_id in unique_ids]       
 
-       plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5) #, bbox_to_anchor=(1.05, 1)
+           # Create legend handles and labels based on unique labels
+           handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
+       
+
+           plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5) #, bbox_to_anchor=(1.05, 1)
+       else:
+           plt.colorbar()    
    else:
        scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], alpha=0.6, s = 10)
           
@@ -342,7 +357,10 @@ def tsne_plot(X_train, y_train = None, colors = None):
     tsne = TSNE(n_components=2, perplexity=50, learning_rate=100, max_iter=3000, init='pca') 
 
     if colors is None:
-        colors = ListedColormap(["tab:green", "tab:purple"])
+        listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(np.unique(y_train)))))
+        #colors = ListedColormap(["tab:green", "tab:purple"])
+    else:
+        listed_cmap = colors    
 
    # plt.figure(figsize=(4, 4))
 
@@ -352,7 +370,9 @@ def tsne_plot(X_train, y_train = None, colors = None):
 
     # Visualize the t-SNE output
     if y_train is not None:
-        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=0.5, s = 10, cmap=colors)
+        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=0.5, s = 10, cmap=listed_cmap)
+        if colors is None:
+            plt.colorbar()    
     else:
         plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s = 10)
     plt.title("tSNE space")    
@@ -487,3 +507,65 @@ def plot_results(column_name, num_ind_points, fp_to_plot, tables_average_folds):
     
     plt.grid(True, zorder=1)
     plt.show()  
+
+def train_xgboost(X_train, y_train, X_test, y_test):
+    model = XGBRegressor(
+    n_jobs=-1,                # Use all CPU cores
+    tree_method="hist",   # Use "hist" for CPU, "gpu_hist" for GPU
+    objective="reg:squarederror",  # Default loss function for regression
+    )
+
+    # Define cross-validation (e.g., 5-fold)
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+    y_true_list = []
+    y_pred_list = []
+
+    for train_idx, test_idx in kf.split(X_train):
+        X_fold_train, X_fold_test = X_train[train_idx], X_train[test_idx]
+        y_fold_train, y_fold_test = y_train[train_idx], y_train[test_idx]
+
+        model.fit(X_fold_train, y_fold_train)
+        y_pred_fold = model.predict(X_fold_test)
+
+        y_true_list.append(y_fold_test)
+        y_pred_list.append(y_pred_fold)
+
+    # Convert lists to arrays
+    y_true_cv = np.concatenate(y_true_list)
+    y_pred_cv = np.concatenate(y_pred_list)   
+
+    model.fit(X_train.cpu(), y_train.cpu().numpy())
+
+    # Make predictions
+    y_pred_test = model.predict(X_test.cpu())
+
+    return  y_true_cv, y_pred_cv, y_pred_test
+
+def xgboost_accuracy_contin(X_train, X_test, y_train, y_test, sorted_cog_idx, feat_step, feat_removal = False):
+    rmse_test_arr = []
+    r2_test_arr = []
+    rmse_cv_arr = []
+    r2_cv_arr = []
+    
+    num_feat = range(1,len(sorted_cog_idx),feat_step)
+    num_feat_plot = []
+    for N in num_feat:
+        if feat_removal == False:
+            select_feat = list(sorted_cog_idx[:N])
+        else:
+            select_feat = list(sorted_cog_idx[N:])
+        num_feat_plot.append(N)#len(select_feat))    
+        X_train_select_feat = X_train[:, select_feat]
+        X_test_select_feat = X_test[:, select_feat]
+        y_true_cv, y_pred_cv, y_pred_test  = train_xgboost(X_train_select_feat, y_train, X_test_select_feat, y_test)
+        
+        rmse_test = np.sqrt(mean_squared_error(y_test, y_pred_test))
+        rmse_test_arr.append(rmse_test)
+        r2_test = r2_score(y_test, y_pred_test)
+        r2_test_arr.append(r2_test)
+        rmse_cv = np.sqrt(mean_squared_error(y_true_cv, y_pred_cv))
+        rmse_cv_arr.append(rmse_cv)
+        r2_cv = r2_score(y_true_cv, y_pred_cv)
+        r2_cv_arr.append(r2_cv)
+    return rmse_test_arr, r2_test_arr, rmse_cv_arr, r2_cv_arr, num_feat_plot 

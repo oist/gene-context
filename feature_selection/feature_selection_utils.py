@@ -1,16 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import xgboost
+
 from xgboost import XGBClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MaxAbsScaler
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import accuracy_score
 
-from sklearn.feature_selection import mutual_info_classif
+from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
 
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.feature_selection import SelectFromModel
 
 from sklearn.svm import LinearSVC
@@ -30,15 +30,15 @@ def xgboost_train_accur(X_train, y_train, X_test, y_test, device):
     test_accuracy = accuracy_score(y_test.cpu(), pipe.predict(X_test.cpu()))
     return test_accuracy, cv_mean
 
-def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indices, baseline_accuracy, feat_step, device):
+def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indices, baseline_accuracy, feat_step, device, contin_flag = False):
     cv_accur_arr = []
     test_accur_arr = []
     num_feat = range(1,len(sorted_indices),feat_step)
     for N in num_feat:
         select_feat = list(sorted_indices[:N])
-        X_train_select_feat = X_train[:, select_feat]
+        X_train_select_feat = X_train[:, select_feat] #same for y_train??
         X_test_select_feat = X_test[:, select_feat]
-        test_accuracy, cv_accur_mean = xgboost_train_accur(X_train_select_feat, y_train, X_test_select_feat, y_test, device)
+        test_accuracy, cv_accur_mean = xgboost_train_accur(X_train_select_feat, y_train, X_test_select_feat, y_test, device, contin_flag)
         cv_accur_arr.append(cv_accur_mean)
         test_accur_arr.append(test_accuracy)
 
@@ -55,18 +55,26 @@ def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indic
 
     return cv_accur_arr,  test_accur_arr, num_feat
 
-def mutual_info_features(X_train, y_train, X_train_column_names):
-    mutual_info = mutual_info_classif(X_train, y_train)
+def mutual_info_features(X_train, y_train, X_train_column_names, contin_flag = False):
+    if contin_flag == False:
+        mutual_info = mutual_info_classif(X_train, y_train)
+    else:
+        mutual_info = mutual_info_regression(X_train, y_train)
+    
     sorted_indices = np.argsort(mutual_info)[::-1] 
     sorted_mi = [mutual_info[i] for i in sorted_indices]
     sorted_names = [X_train_column_names[i] for i in sorted_indices]
 
     return sorted_indices, sorted_mi, sorted_names
 
-def random_forest_features(X_train, y_train, X_train_column_names):
+def random_forest_features(X_train, y_train, X_train_column_names, contin_flag = False):
 
-    # Train a Random Forest model
-    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    if contin_flag == False:
+        # Train a Random Forest model
+        rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    else:    
+        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+
     rf.fit(X_train, y_train)
 
     # Get feature importances
