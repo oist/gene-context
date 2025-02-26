@@ -535,10 +535,10 @@ def train_xgboost(X_train, y_train, X_test, y_test):
     y_true_cv = np.concatenate(y_true_list)
     y_pred_cv = np.concatenate(y_pred_list)   
 
-    model.fit(X_train.cpu(), y_train.cpu().numpy())
+    model.fit(X_train, y_train.cpu().numpy())
 
     # Make predictions
-    y_pred_test = model.predict(X_test.cpu())
+    y_pred_test = model.predict(X_test)#.cpu())
 
     return  y_true_cv, y_pred_cv, y_pred_test
 

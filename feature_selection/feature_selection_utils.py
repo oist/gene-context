@@ -20,7 +20,7 @@ THREADS = 64
 
 def xgboost_train_accur(X_train, y_train, X_test, y_test, device):
 
-    pipe = make_pipeline(MaxAbsScaler(), XGBClassifier(n_jobs=THREADS if device == "cpu" else None, tree_method="gpu_hist" if device == "cpu" else "hist"))
+    pipe = make_pipeline(XGBClassifier(n_jobs=THREADS if device == "cpu" else None, tree_method="gpu_hist" if device == "cpu" else "hist"))
     
     cv_scores = cross_val_score(pipe, X_train.cpu(), y_train.cpu(), cv=5, scoring='accuracy')
     cv_mean = np.mean(cv_scores)
@@ -30,30 +30,28 @@ def xgboost_train_accur(X_train, y_train, X_test, y_test, device):
     test_accuracy = accuracy_score(y_test.cpu(), pipe.predict(X_test.cpu()))
     return test_accuracy, cv_mean
 
-def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indices, baseline_accuracy, feat_step, device, contin_flag = False):
+def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indices, baseline_accuracy, feat_step, device, feat_removal = False):
     cv_accur_arr = []
     test_accur_arr = []
+ 
     num_feat = range(1,len(sorted_indices),feat_step)
+    num_feat_plot = []
     for N in num_feat:
-        select_feat = list(sorted_indices[:N])
-        X_train_select_feat = X_train[:, select_feat] #same for y_train??
+        if feat_removal == False:
+            select_feat = list(sorted_indices[:N])
+        else:
+            select_feat = list(sorted_indices[N:])
+        num_feat_plot.append(N)        
+       
+       
+        X_train_select_feat = X_train[:, select_feat] 
         X_test_select_feat = X_test[:, select_feat]
-        test_accuracy, cv_accur_mean = xgboost_train_accur(X_train_select_feat, y_train, X_test_select_feat, y_test, device, contin_flag)
+        test_accuracy, cv_accur_mean = xgboost_train_accur(X_train_select_feat, y_train, X_test_select_feat, y_test, device)
         cv_accur_arr.append(cv_accur_mean)
         test_accur_arr.append(test_accuracy)
 
-    plt.figure(figsize=(10, 4))
-    plt.plot(num_feat, test_accur_arr, c = "tab:red", label = "test")
-    plt.plot(num_feat, cv_accur_arr, c = "tab:blue", label = "cv")
-    plt.axhline(y=baseline_accuracy, color='tab:green', linestyle='--', linewidth=1.5, label='test accur. (all features)')
-    plt.xlabel("number of features")
-    plt.ylabel("accuracy")
-    plt.title("XGBoost training accuracy for the selected features")
-    plt.grid()
-    plt.legend()
-    plt.show()
+    return cv_accur_arr,  test_accur_arr, num_feat_plot 
 
-    return cv_accur_arr,  test_accur_arr, num_feat
 
 def mutual_info_features(X_train, y_train, X_train_column_names, contin_flag = False):
     if contin_flag == False:
