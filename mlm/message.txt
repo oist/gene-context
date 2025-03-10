@@ -1,0 +1,84 @@
+===========================================
+Decoding Process in the Set Transformer Model
+===========================================
+
+1. Input Representation:
+-------------------------
+Each genome is initially represented as an unordered set of tokens. Each token is a pair (COG_index, noisy_count). The COG_index explicitly encodes the identity of a gene family (e.g., COG or arCOG) while the noisy_count (typically thresholded to 0 or 1) reflects the observed presence signal, which may be corrupted by false negatives or false positives.
+
+2. Embedding & Combination:
+---------------------------
+To form the initial representation, two embedding steps are performed:
+  - A token embedding layer maps each COG_index into a d-dimensional vector.
+  - A separate linear layer projects the noisy_count (a binary value) into a d-dimensional vector.
+These two embeddings are then summed to form the token representation:
+  
+  X = Embedding(COG_index) + Linear(noisy_count)
+
+This sum yields the initial token representation X for each observed gene.
+
+3. Local Feature Extraction:
+----------------------------
+Before any attention-based processing, a local summary is computed by taking the average of the token embeddings:
+  
+  local_features = mean(X, axis=token_dimension)
+
+This average serves to capture overall gene presence information without incorporating inter-token dependencies.
+
+4. Global Feature Extraction via Transformer Blocks:
+------------------------------------------------------
+The token representations X are then fed through several Set Attention Blocks (SAB). Each SAB block consists of:
+  • Multihead Self-Attention:
+      Computes attention using the formula:
+      
+         Attention(Q, K, V) = softmax((QKᵀ)/√d) V
+         
+      where Q, K, V are all derived from X. A residual connection is applied:
+      
+         X' = LayerNorm(X + MultiHeadAttention(X, X, X))
+      
+  • Feed-Forward Network (FFN):
+      A two-layer network with a non-linear activation (e.g., ReLU) is applied to X'. Another residual connection and layer normalization follow:
+      
+         X = LayerNorm(X' + FFN(X'))
+         
+These SAB blocks allow tokens to interact, learning dependencies and correcting for noise through contextual information.
+
+5. Global Pooling (PMA):
+------------------------
+After the SAB blocks, the model aggregates the variable number of token representations into a fixed-size global representation using Pooling by Multihead Attention (PMA). PMA uses a set of learnable seed vectors S (often just one seed vector for global pooling). It computes a weighted aggregation of token features via:
+  
+  pooled = LayerNorm(S + MultiHeadAttention(S, X, X))
+
+This pooled output is a fixed-size vector that represents the global context of the genome, integrating information from all observed tokens.
+
+6. Decoding:
+------------
+The decoding stage combines both the global pooled features and the local average features. Specifically, the model concatenates the pooled vector with the local_features vector:
+
+  combined = [pooled ; local_features]
+
+This concatenated vector is then passed through a decoder network, typically implemented as a feed-forward network:
+  • First, a linear layer projects the combined vector to a hidden dimension followed by a ReLU activation:
+      
+         hidden = ReLU(Linear(combined))
+      
+  • Then, another linear layer projects the hidden representation to the output dimension:
+      
+         logits = Linear(hidden)
+      
+The logits vector has a dimensionality equal to the total number of gene families in the vocabulary (|V|). Finally, a sigmoid activation function is applied to each element of logits to produce probabilities in the range [0,1]:
+  
+  p = sigmoid(logits)
+
+7. Reconstruction & Loss:
+-------------------------
+The predicted probability vector p ∈ [0,1]^|V| represents the model’s reconstruction of the true binary gene presence profile for the genome. To train the model, Binary Cross-Entropy (BCE) loss is computed between the predicted probabilities and the ground truth binary vector y:
+  
+  L_BCE = − (1/|V|) ∑[ y_v * log(p_v) + (1 − y_v) * log(1 − p_v) ]
+
+where the summation is performed over all gene families v = 1, …, |V|. This loss encourages the model to accurately reconstruct the complete, denoised gene profile from the noisy set of observed tokens.
+
+===========================================
+End of Decoding Process Description
+===========================================
