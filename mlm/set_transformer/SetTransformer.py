@@ -24,10 +24,10 @@ import torch
 import torch.optim as optim
 from torch.utils.data import  DataLoader
 
-from architecture import GenomeSetTransformer
-from metrics import evaluate_metrics_extended
-from training_functions import initialize_weights, train_and_validate
-from data_processing_functions import GenomeDataset, collate_genomes, process_eggnog_and_metadata, print_to_file, print_to_file_block, subsample_and_split_by_taxonomy
+from utils.architecture import GenomeSetTransformer
+from utils.metrics import evaluate_metrics_extended
+from utils.training_functions import initialize_weights, train_and_validate
+from utils.data_processing_functions import GenomeDataset, collate_genomes, process_eggnog_and_metadata, print_to_file, print_to_file_block, subsample_and_split_by_taxonomy
 
 EGGNOG_CSV = "filtered_all_eggnog.csv"
 AR_METADATA_TSV = "ar53_metadata_r220.tsv"
@@ -58,10 +58,13 @@ def process_args():
     return args
 
 def main():
+    # 1. Read the input args
     args = process_args()
+
+    # 2. Read and split the input dataset into the training and test ones
     global_vocab, cog2idx, train_df, val_df = read_and_split_input()
 
-    # Hyperparamerers of the model
+    # 3. Hyperparamerers of the model
     pad_idx = len(global_vocab) # padding size
     batch_size = args.batch_size
     embedd_dim = args.embedd_dim
@@ -69,30 +72,28 @@ def main():
     num_sab = args.num_sab
     model_filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_BCE.pth"
 
-    # Generate train data loaders in different noise regimes
+    # 4. Generate train data loaders in different noise regimes
     train_loader_low = generate_noisy_dataset(train_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.1, fp_rate=0.01)
     train_loader_med = generate_noisy_dataset(train_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.25, fp_rate=0.02)
     train_loader_high = generate_noisy_dataset(train_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)
 
-    # Generate validation data loaders in different noise regimes
+    # 5. Generate validation data loaders in different noise regimes
     val_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)  # WHY???
     val_low_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.05, fp_rate=0.01)  
     val_med_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.33, fp_rate=0.03)  
     val_high_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)  
 
-    #_______________________________ Training preparations _______________________________#
-
+    # 6. Training preparations / model initialization
     gc.collect() # free Python memory
     torch.cuda.empty_cache() # free unused GPU memory
 
-    # Initialize the model
     model = GenomeSetTransformer(vocab_size=len(global_vocab), d_model=embedd_dim, num_heads=num_heads, num_sab=num_sab, dropout=0.1)
     model.apply(initialize_weights)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Pre-training metrics
+    # 7. Find and save the pre-training metrics
     for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
         extended_metrics = evaluate_metrics_extended(model, val_loader, device, 0.5)
         print_to_file(f"\n {noise_name} noise:")
@@ -105,7 +106,7 @@ def main():
     num_epochs = args.num_epochs
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    #_______________________________ Training on Low-Noise _______________________________#
+    # 8. Training on Low-Noise 
     train_and_validate(model, train_loader_low, val_loader, optimizer, num_epochs, device, threshold=0.5)
     torch.save(model.state_dict(), "low_" + model_filename_specs)
 
@@ -114,7 +115,7 @@ def main():
         print_to_file(f"\n {noise_name} noise:")
         print_to_file_block(extended_metrics)
 
-    #_______________________________ Training on Med-Noise _______________________________#
+    # 9. Training on Med-Noise
     train_and_validate(model, train_loader_med, val_loader, optimizer, num_epochs, device, threshold=0.5)
     torch.save(model.state_dict(), "med_" + model_filename_specs)
 
@@ -123,7 +124,7 @@ def main():
         print_to_file(f"\n {noise_name} noise:")
         print_to_file_block(extended_metrics)
 
-    #_______________________________ Training on High-Noise _______________________________#
+    # 10. Training on High-Noise
     train_and_validate(model, train_loader_high, val_loader, optimizer, num_epochs, device, threshold=0.5)
     torch.save(model.state_dict(), "high_" + model_filename_specs)
 
