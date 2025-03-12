@@ -1,8 +1,8 @@
 import torch.nn as nn
 from tqdm import tqdm
 
-from utils.metrics import evaluate_metrics_extended, combined_loss
-from utils.data_processing_functions import print_to_file
+from set_transformer.utils.metrics import evaluate_metrics_extended, combined_loss
+from data_processing_utils.data_processing_functions import print_to_file
 
 def initialize_weights(module):
     # Initialize Linear layers using Kaiming initialization for ReLU
