@@ -19,6 +19,7 @@ The encoding and loss are as follows:
 Tested with Python 3.7.
 """
 import gc
+import os
 import argparse
 import torch
 import torch.optim as optim
@@ -34,6 +35,7 @@ AR_METADATA_TSV = "data/ar53_metadata_r220.tsv"
 BAC_MATADATA_TSV = "data/bac120_metadata_r220.tsv"
 
 def read_and_split_input(output_file):
+    print("Reading the input files and splitting into train and test datasets...")
     data, global_vocab, cog2idx = process_eggnog_and_metadata(EGGNOG_CSV, AR_METADATA_TSV, BAC_MATADATA_TSV, output_file)
     train_df, val_df = subsample_and_split_by_taxonomy(data, output_file, subsample_fraction=1.,
                                                         taxonomic_level="group", test_fraction=0.2,
@@ -44,8 +46,8 @@ def generate_noisy_dataset(df, global_vocab, cog2idx, batch_size, pad_idx, fn_ra
      dataset = GenomeDataset(df, global_vocab, cog2idx,
                                false_negative_rate=fn_rate, false_positive_rate=fp_rate,
                                count_noise_std=count_noise_std, random_state=random_state)
-     train_loader_low = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=lambda batch: collate_genomes(batch, pad_idx=pad_idx))    
-     return train_loader_low
+     dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=lambda batch: collate_genomes(batch, pad_idx=pad_idx))    
+     return dataset_loader
 
 def process_args():
     parser = argparse.ArgumentParser(description="Process input arguments for model training.")
@@ -69,11 +71,19 @@ def main():
     filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_BCE"
     model_filename = filename_specs + ".pth"
     output_filename = filename_specs + ".out"
-    output_file = open(output_filename, "w")
+    output_directory = "set_transformer/output"
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    output_file = open(os.path.join(output_directory, output_filename), "w") 
 
     # 2. Read and split the input dataset into the training and test ones
     global_vocab, cog2idx, train_df, val_df = read_and_split_input(output_file)
     pad_idx = len(global_vocab) # padding size
+
+    print(f"train_df = {train_df}")
+
+    print(f"global_vocab = {global_vocab}")
 
     # 4. Generate train data loaders in different noise regimes
     train_loader_low = generate_noisy_dataset(train_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.1, fp_rate=0.01)
@@ -97,8 +107,8 @@ def main():
     model.to(device)
 
     # 7. Find and save the pre-training metrics
-    for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
-        extended_metrics = evaluate_metrics_extended(model, val_loader, device, 0.5)
+    for noise_name, val_loader_noise in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
+        extended_metrics = evaluate_metrics_extended(model, val_loader_noise, device, 0.5)
         print_to_file(output_file, f"\n {noise_name} noise:")
         print_to_file_block(output_file, extended_metrics)
 
@@ -113,8 +123,8 @@ def main():
     train_and_validate(model, train_loader_low, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "low_" + model_filename)
 
-    for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
-        extended_metrics = evaluate_metrics_extended(model, val_loader, device, 0.5)
+    for noise_name, val_loader_noise in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
+        extended_metrics = evaluate_metrics_extended(model, val_loader_noise, device, 0.5)
         print_to_file(output_file, f"\n {noise_name} noise:")
         print_to_file_block(output_file, extended_metrics)
 
@@ -122,8 +132,8 @@ def main():
     train_and_validate(model, train_loader_med, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "med_" + model_filename)
 
-    for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
-        extended_metrics = evaluate_metrics_extended(model, val_loader, device, 0.5)
+    for noise_name, val_loader_noise in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
+        extended_metrics = evaluate_metrics_extended(model, val_loader_noise, device, 0.5)
         print_to_file(output_file, f"\n {noise_name} noise:")
         print_to_file_block(output_file, extended_metrics)
 
@@ -131,8 +141,8 @@ def main():
     train_and_validate(model, train_loader_high, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "high_" + model_filename)
 
-    for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
-        extended_metrics = evaluate_metrics_extended(model, val_loader, device, 0.5)
+    for noise_name, val_loader_noise in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
+        extended_metrics = evaluate_metrics_extended(model, val_loader_noise, device, 0.5)
         print_to_file(output_file, f"\n {noise_name} noise:")
         print_to_file_block(output_file, extended_metrics)
 

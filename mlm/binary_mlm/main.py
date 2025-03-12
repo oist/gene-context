@@ -1,4 +1,5 @@
 import gc
+import os
 import argparse
 
 import torch
@@ -40,10 +41,14 @@ def main():
     embedd_dim = args.embedd_dim
     num_heads = args.num_heads
     num_layers = args.num_layers
-    filename_specs = f"binary_mlm_embedd_{embedd_dim}_heads_{num_heads}_layers_{num_layers}_BCE"
+    filename_specs = f"binary_mlm_embedd_{embedd_dim}_heads_{num_heads}_layers_{num_layers}E"
     model_filename = filename_specs + ".pth"
     output_filename = filename_specs + ".out"
-    output_file = open(output_filename, "w")
+    output_directory = "binary_mlm/output"
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    output_file = open(os.path.join(output_directory, output_filename), "w") 
 
     # 3. Read and split the input dataset into the training and test ones
     global_vocab, cog2idx, train_df, val_df = read_and_split_input(output_file)
@@ -68,36 +73,31 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader   = DataLoader(val_dataset, batch_size=batch_size)
 
-    # Initialize the MLM model.
-    # Set max_seq_len to the number of gene families (i.e. len(global_vocab)).
+    # 6. Training preparations / model initialization
     model = BinaryMLMModel(vocab_size=3,
                         embed_dim=embedd_dim, 
                         num_layers=num_layers, 
                         num_heads=num_heads, 
                         dropout=0.1,
-                        max_seq_len=len(global_vocab))
+                        max_seq_len=len(global_vocab)) # set max_seq_len to the number of gene families (i.e. len(global_vocab))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-
-
-
     gc.collect()
     torch.cuda.empty_cache()
+
     # Train the model.
     epochs = args.num_epochs
     lr = args.learning_rate #1e-4
     train_model(model, train_loader, val_loader, device, epochs=epochs, lr=lr)
-    torch.save(model.state_dict(), "binMLM_512_6_8_01_e20.pth")
+    torch.save(model.state_dict(), os.path.join(output_directory, model_filename))
 
-    train_model(model, train_loader, val_loader, device, epochs=epochs, lr=lr)
-    torch.save(model.state_dict(), "binMLM_512_6_8_01_e40.pth")
+    # train_model(model, train_loader, val_loader, device, epochs=epochs, lr=lr)
+    # torch.save(model.state_dict(), "binMLM_512_6_8_01_e40.pth")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print_to_file(output_file, torch.cuda.memory_summary(device=device, abbreviated=True))
-
-
 
 if __name__=='__main__':
     main()

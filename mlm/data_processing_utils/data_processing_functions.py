@@ -28,6 +28,8 @@ class GenomeDataset(Dataset):
         return len(self.df)
     
     def __getitem__(self, idx):
+        print(f"generat noisy tarain for fp = {self.false_positive_rate}; fn = {self.false_negative_rate}")
+
         # Get the gene counts and convert to binary target (presence/absence)
         row = self.df.iloc[idx]
         counts = row[self.global_vocab].values.astype(np.float32)
@@ -50,7 +52,9 @@ class GenomeDataset(Dataset):
         
         # Simulate false positives: add a small number of genes that are truly absent.
         num_false_positives = self.rng.poisson(lam=self.false_positive_rate * self.vocab_size)
+        print(f"num_false_positives = {num_false_positives}")
         absent_indices = np.where(target == 0)[0]
+        print(f"num absent_indices = {len(absent_indices)}")
         if len(absent_indices) > 0 and num_false_positives > 0:
             false_pos = self.rng.choice(absent_indices, size=min(num_false_positives, len(absent_indices)), replace=False)
             for fp in false_pos:
