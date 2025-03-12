@@ -8,9 +8,9 @@ from binary_mlm.utils.architecture import BinaryMLMModel
 from binary_mlm.utils.training_functions import validate, train_model_simple, train_model, combined_validate
 from data_processing_utils.data_processing_functions import CopyNumberMLMDataset, print_to_file, process_eggnog_and_metadata, subsample_and_split_by_taxonomy, fast_save_dfs, fast_load_dfs, get_global_vocab_and_cog2idx_from_df
 
-EGGNOG_CSV =  "only_COGs.csv"
-AR_METADATA_TSV = "ar53_metadata_r220.tsv"
-BAC_MATADATA_TSV = "bac120_metadata_r220.tsv"
+EGGNOG_CSV =  "data/only_COGs.csv"
+AR_METADATA_TSV = "data/ar53_metadata_r220.tsv"
+BAC_MATADATA_TSV = "data/bac120_metadata_r220.tsv"
 
 def read_and_split_input(output_file):
     data, global_vocab, cog2idx = process_eggnog_and_metadata(EGGNOG_CSV, AR_METADATA_TSV, BAC_MATADATA_TSV, output_file)
@@ -95,7 +95,7 @@ def main():
     torch.save(model.state_dict(), "binMLM_512_6_8_01_e40.pth")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print_to_file(torch.cuda.memory_summary(device=device, abbreviated=True))
+    print_to_file(output_file, torch.cuda.memory_summary(device=device, abbreviated=True))
 
 
 

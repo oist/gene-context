@@ -29,9 +29,9 @@ from set_transformer.utils.metrics import evaluate_metrics_extended
 from set_transformer.utils.training_functions import initialize_weights, train_and_validate
 from data_processing_utils.data_processing_functions import GenomeDataset, collate_genomes, process_eggnog_and_metadata, print_to_file, print_to_file_block, subsample_and_split_by_taxonomy
 
-EGGNOG_CSV = "filtered_all_eggnog.csv"
-AR_METADATA_TSV = "ar53_metadata_r220.tsv"
-BAC_MATADATA_TSV = "bac120_metadata_r220.tsv"
+EGGNOG_CSV = "data/filtered_all_eggnog.csv"
+AR_METADATA_TSV = "data/ar53_metadata_r220.tsv"
+BAC_MATADATA_TSV = "data/bac120_metadata_r220.tsv"
 
 def read_and_split_input(output_file):
     data, global_vocab, cog2idx = process_eggnog_and_metadata(EGGNOG_CSV, AR_METADATA_TSV, BAC_MATADATA_TSV, output_file)
@@ -110,7 +110,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     # 8. Training on Low-Noise 
-    train_and_validate(model, train_loader_low, val_loader, optimizer, num_epochs, device, threshold=0.5)
+    train_and_validate(model, train_loader_low, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "low_" + model_filename)
 
     for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
@@ -119,7 +119,7 @@ def main():
         print_to_file_block(output_file, extended_metrics)
 
     # 9. Training on Med-Noise  model.apply(initialize_weights) ????
-    train_and_validate(model, train_loader_med, val_loader, optimizer, num_epochs, device, threshold=0.5)
+    train_and_validate(model, train_loader_med, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "med_" + model_filename)
 
     for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
@@ -128,7 +128,7 @@ def main():
         print_to_file_block(output_file, extended_metrics)
 
     # 10. Training on High-Noise model.apply(initialize_weights) ????
-    train_and_validate(model, train_loader_high, val_loader, optimizer, num_epochs, device, threshold=0.5)
+    train_and_validate(model, train_loader_high, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "high_" + model_filename)
 
     for noise_name, val_loader in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):

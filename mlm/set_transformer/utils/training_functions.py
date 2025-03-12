@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from tqdm import tqdm
 
@@ -21,7 +22,7 @@ def initialize_weights(module):
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # --- Train and Validate Function ---
-def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, device, 
+def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, device, output_file, 
                        threshold=0.5, max_iters=10, use_focal_loss=False, focal_alpha=1.0, focal_gamma=2.0,combined_alpha=0.5, 
                        use_combined_loss=False, criterion=None):
     """
@@ -45,13 +46,13 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
         if use_combined_loss:
             # Use combined loss (BCE + soft F1 loss)
             criterion = lambda preds, targets: combined_loss(targets, preds, alpha=combined_alpha)
-            print_to_file("Using combined loss (BCE + soft F1 loss)")
+            print_to_file(output_file, "Using combined loss (BCE + soft F1 loss)")
         elif use_focal_loss:
             criterion = FocalLoss(alpha=focal_alpha, gamma=focal_gamma)
-            print_to_file("Using Focal Loss with alpha={} and gamma={}".format(focal_alpha, focal_gamma))
+            print_to_file(output_file, "Using Focal Loss with alpha={} and gamma={}".format(focal_alpha, focal_gamma))
         else:
             criterion = nn.BCELoss()
-            print_to_file("Using standard BCE Loss")
+            print_to_file(output_file, "Using standard BCE Loss")
     
     # Set up learning rate scheduler.
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2, verbose=True)
@@ -77,7 +78,7 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
         
         avg_loss = running_loss / len(train_loader)
         current_lr = optimizer.param_groups[0]['lr']
-        print_to_file("Epoch [{}/{}] Training Loss: {:.4f}, Learning Rate: {:.6f}".format(
+        print_to_file(output_file, "Epoch [{}/{}] Training Loss: {:.4f}, Learning Rate: {:.6f}".format(
             epoch+1, num_epochs, avg_loss, current_lr))
         
         # Step the scheduler based on average training loss.
@@ -85,14 +86,14 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
         
         # Evaluate using extended metrics.
         extended_metrics = evaluate_metrics_extended(model, val_loader, device, threshold)
-        print_to_file("\nExtended Evaluation Metrics (Epoch {}):".format(epoch+1))
-        print_to_file("  Average per-genome Accuracy         : {:.4f}".format(extended_metrics["avg_accuracy"]))
-        print_to_file("  Average per-genome Precision (macro)  : {:.4f}".format(extended_metrics["avg_precision"]))
-        print_to_file("  Average per-genome Recall (macro)     : {:.4f}".format(extended_metrics["avg_recall"]))
-        print_to_file("  Average per-genome F1 (macro)         : {:.4f}".format(extended_metrics["avg_f1"]))
-        print_to_file("  Average Genome Size Difference (abs)  : {:.4f}".format(extended_metrics["avg_genome_size_diff"]))
-        print_to_file("  Average FP Noise Removed Fraction   : {:.4f}".format(extended_metrics["avg_fp_removed_fraction"]))
-        print_to_file("  Average FN Noise Recovered Fraction : {:.4f}".format(extended_metrics["avg_fn_recovered_fraction"]))    
+        print_to_file(output_file, "\nExtended Evaluation Metrics (Epoch {}):".format(epoch+1))
+        print_to_file(output_file, "  Average per-genome Accuracy         : {:.4f}".format(extended_metrics["avg_accuracy"]))
+        print_to_file(output_file, "  Average per-genome Precision (macro)  : {:.4f}".format(extended_metrics["avg_precision"]))
+        print_to_file(output_file, "  Average per-genome Recall (macro)     : {:.4f}".format(extended_metrics["avg_recall"]))
+        print_to_file(output_file, "  Average per-genome F1 (macro)         : {:.4f}".format(extended_metrics["avg_f1"]))
+        print_to_file(output_file, "  Average Genome Size Difference (abs)  : {:.4f}".format(extended_metrics["avg_genome_size_diff"]))
+        print_to_file(output_file, "  Average FP Noise Removed Fraction   : {:.4f}".format(extended_metrics["avg_fp_removed_fraction"]))
+        print_to_file(output_file, "  Average FN Noise Recovered Fraction : {:.4f}".format(extended_metrics["avg_fn_recovered_fraction"]))    
 
     torch.save(model.state_dict(), "model_checkpoint_full.pth")
-    print_to_file("Model checkpoint saved to model_checkpoint_full.pth")        
+    print_to_file(output_file, "Model checkpoint saved to model_checkpoint_full.pth")        

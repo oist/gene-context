@@ -43,7 +43,7 @@ def evaluate_metrics_extended(model, dataloader, device, threshold=0.5):
     fp_removed_list = []   # List to store per-genome FP noise removal fraction
     fn_recovered_list = [] # List to store per-genome FN noise recovery fraction
     
-    for tokens, mask, targets in tqdm(dataloader, desc="Evaluating (extended)"):
+    for tokens, mask, targets in tqdm(dataloader, desc="Evaluating the pre-trained model"):
         tokens = tokens.to(device)
         mask = mask.to(device)
         targets = targets.to(device)
