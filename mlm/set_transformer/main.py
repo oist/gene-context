@@ -30,9 +30,9 @@ from set_transformer.utils.metrics import evaluate_metrics_extended
 from set_transformer.utils.training_functions import initialize_weights, train_and_validate
 from data_processing_utils.data_processing_functions import GenomeDataset, collate_genomes, process_eggnog_and_metadata, print_to_file, print_to_file_block, subsample_and_split_by_taxonomy
 
-EGGNOG_CSV = "data/filtered_all_eggnog.csv"
-AR_METADATA_TSV = "data/ar53_metadata_r220.tsv"
-BAC_MATADATA_TSV = "data/bac120_metadata_r220.tsv"
+EGGNOG_CSV = "data/filtered_all_eggnog_small.csv"
+AR_METADATA_TSV = "data/ar53_metadata_r220_small.tsv"
+BAC_MATADATA_TSV = "data/bac120_metadata_r220_small.tsv"
 
 def read_and_split_input(output_file):
     print("Reading the input files and splitting into train and test datasets...")
@@ -82,6 +82,7 @@ def main():
     pad_idx = len(global_vocab) # padding size
 
     print(f"train_df = {train_df}")
+    print(f"val_df = {val_df}")
 
     print(f"global_vocab = {global_vocab}")
 
