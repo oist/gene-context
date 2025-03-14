@@ -4,7 +4,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 
 class GenomeDataset(Dataset):
-    def __init__(self, df, global_vocab, cog2idx,
+    def __init__(self, df, global_vocab,
                  false_negative_rate=0.3, false_positive_rate=0.005,
                  count_noise_std=0.0, random_state=None):
         """
@@ -17,7 +17,7 @@ class GenomeDataset(Dataset):
         """
         self.df = df.reset_index(drop=True)
         self.global_vocab = global_vocab
-        self.cog2idx = cog2idx
+        #self.cog2idx = cog2idx
         self.vocab_size = len(global_vocab)
         self.false_negative_rate = false_negative_rate
         self.false_positive_rate = false_positive_rate
@@ -28,8 +28,6 @@ class GenomeDataset(Dataset):
         return len(self.df)
     
     def __getitem__(self, idx):
-        print(f"generat noisy tarain for fp = {self.false_positive_rate}; fn = {self.false_negative_rate}")
-
         # Get the gene counts and convert to binary target (presence/absence)
         row = self.df.iloc[idx]
         counts = row[self.global_vocab].values.astype(np.float32)
@@ -52,9 +50,9 @@ class GenomeDataset(Dataset):
         
         # Simulate false positives: add a small number of genes that are truly absent.
         num_false_positives = self.rng.poisson(lam=self.false_positive_rate * self.vocab_size)
-        print(f"num_false_positives = {num_false_positives}")
+
         absent_indices = np.where(target == 0)[0]
-        print(f"num absent_indices = {len(absent_indices)}")
+
         if len(absent_indices) > 0 and num_false_positives > 0:
             false_pos = self.rng.choice(absent_indices, size=min(num_false_positives, len(absent_indices)), replace=False)
             for fp in false_pos:
@@ -127,6 +125,10 @@ def print_to_file(output_file, *args, sep=' ', end='\n', flush=True):
         output_file.flush()
 
 
+def load_list_from_txt(txt_path):
+    with open(txt_path, "r") as f:
+        return [line.strip() for line in f]  # Removes trailing \n
+
 def print_to_file_block(output_file, extended_metrics):
     print_to_file(output_file, "  Average per-genome Accuracy         : {:.4f}".format(extended_metrics["avg_accuracy"]))
     print_to_file(output_file, "  Average per-genome Precision (macro)  : {:.4f}".format(extended_metrics["avg_precision"]))
@@ -140,8 +142,11 @@ def print_to_file_block(output_file, extended_metrics):
 def process_eggnog_and_metadata(eggnog_csv, ar_metadata_tsv, bac_metadata_tsv, output_file):
     # Load and filter eggNOG data for COG/arCOG entries.
     print_to_file(output_file, "Loading eggNOG CSV data...")
+    print("Loading eggNOG CSV data...")
     df_eggnog = pd.read_csv(eggnog_csv)
     print_to_file(output_file, "  Total eggNOG records loaded: {}".format(len(df_eggnog)))
+
+    print(f"Total eggNOG records loaded: {len(df_eggnog)})")
     
     print_to_file(output_file, "Filtering eggNOG records for COG/arCOG entries...")
     cog_mask = df_eggnog['eggNOG_OGs'].str.startswith("COG") | df_eggnog['eggNOG_OGs'].str.startswith("arCOG")

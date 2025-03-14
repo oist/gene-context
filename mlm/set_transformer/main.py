@@ -23,27 +23,21 @@ import os
 import argparse
 import torch
 import torch.optim as optim
+import pandas as pd
 from torch.utils.data import  DataLoader
 
 from set_transformer.utils.architecture import GenomeSetTransformer
 from set_transformer.utils.metrics import evaluate_metrics_extended
 from set_transformer.utils.training_functions import initialize_weights, train_and_validate
-from data_processing_utils.data_processing_functions import GenomeDataset, collate_genomes, process_eggnog_and_metadata, print_to_file, print_to_file_block, subsample_and_split_by_taxonomy
+from data_processing_utils.data_processing_functions import GenomeDataset, collate_genomes, process_eggnog_and_metadata, print_to_file, print_to_file_block, subsample_and_split_by_taxonomy, load_list_from_txt
 
-EGGNOG_CSV = "data/filtered_all_eggnog_small.csv"
-AR_METADATA_TSV = "data/ar53_metadata_r220_small.tsv"
-BAC_MATADATA_TSV = "data/bac120_metadata_r220_small.tsv"
+EGGNOG_CSV = "data/filtered_all_eggnog.csv"
+AR_METADATA_TSV = "data/ar53_metadata_r220.tsv"
+BAC_MATADATA_TSV = "data/bac120_metadata_r220.tsv"
 
-def read_and_split_input(output_file):
-    print("Reading the input files and splitting into train and test datasets...")
-    data, global_vocab, cog2idx = process_eggnog_and_metadata(EGGNOG_CSV, AR_METADATA_TSV, BAC_MATADATA_TSV, output_file)
-    train_df, val_df = subsample_and_split_by_taxonomy(data, output_file, subsample_fraction=1.,
-                                                        taxonomic_level="group", test_fraction=0.2,
-                                                        random_state=42)
-    return global_vocab, cog2idx, train_df, val_df
 
-def generate_noisy_dataset(df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate, fp_rate, count_noise_std=0, random_state=42):
-     dataset = GenomeDataset(df, global_vocab, cog2idx,
+def generate_noisy_dataset(df, global_vocab, batch_size, pad_idx, fn_rate, fp_rate, count_noise_std=0, random_state=42):
+     dataset = GenomeDataset(df, global_vocab,
                                false_negative_rate=fn_rate, false_positive_rate=fp_rate,
                                count_noise_std=count_noise_std, random_state=random_state)
      dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=lambda batch: collate_genomes(batch, pad_idx=pad_idx))    
@@ -51,6 +45,9 @@ def generate_noisy_dataset(df, global_vocab, cog2idx, batch_size, pad_idx, fn_ra
 
 def process_args():
     parser = argparse.ArgumentParser(description="Process input arguments for model training.")
+    parser.add_argument("--train_feather_path", type=str, help="Path to the train feather data file.")
+    parser.add_argument("--test_feather_path", type=str, help="Path to the test feather data file.")
+    parser.add_argument("--global_vocab_path", type=str, help="Path to the global vocabulary data file.")
     parser.add_argument("--batch_size", type=int, default=10, help="Batch size for training")
     parser.add_argument("--embedd_dim", type=int, default=256, help="Embedding dimencionality")
     parser.add_argument("--num_heads", type=int, default=4, help="Number of heads")
@@ -74,28 +71,24 @@ def main():
     output_directory = "set_transformer/output"
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
-
     output_file = open(os.path.join(output_directory, output_filename), "w") 
 
-    # 2. Read and split the input dataset into the training and test ones
-    global_vocab, cog2idx, train_df, val_df = read_and_split_input(output_file)
+    # 2. Load the train, test datasets, and the global dictionary (all COG names from the initial dataset)
+    train_df = pd.read_feather(args.train_feather_path)
+    val_df = pd.read_feather(args.test_feather_path)
+    global_vocab = load_list_from_txt(args.global_vocab_path)
     pad_idx = len(global_vocab) # padding size
 
-    print(f"train_df = {train_df}")
-    print(f"val_df = {val_df}")
-
-    print(f"global_vocab = {global_vocab}")
-
     # 4. Generate train data loaders in different noise regimes
-    train_loader_low = generate_noisy_dataset(train_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.1, fp_rate=0.01)
-    train_loader_med = generate_noisy_dataset(train_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.25, fp_rate=0.02)
-    train_loader_high = generate_noisy_dataset(train_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)
+    train_loader_low = generate_noisy_dataset(train_df, global_vocab, batch_size, pad_idx, fn_rate=0.1, fp_rate=0.01)
+    train_loader_med = generate_noisy_dataset(train_df, global_vocab, batch_size, pad_idx, fn_rate=0.25, fp_rate=0.02)
+    train_loader_high = generate_noisy_dataset(train_df, global_vocab, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)
 
     # 5. Generate validation data loaders in different noise regimes
-    val_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)  # WHY???
-    val_low_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.05, fp_rate=0.01)  
-    val_med_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.33, fp_rate=0.03)  
-    val_high_loader = generate_noisy_dataset(val_df, global_vocab, cog2idx, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)  
+    val_loader = generate_noisy_dataset(val_df, global_vocab, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)  # WHY???
+    val_low_loader = generate_noisy_dataset(val_df, global_vocab, batch_size, pad_idx, fn_rate=0.05, fp_rate=0.01)  
+    val_med_loader = generate_noisy_dataset(val_df, global_vocab, batch_size, pad_idx, fn_rate=0.33, fp_rate=0.03)  
+    val_high_loader = generate_noisy_dataset(val_df, global_vocab, batch_size, pad_idx, fn_rate=0.5, fp_rate=0.05)  
 
     # 6. Training preparations / model initialization
     gc.collect() # free Python memory
