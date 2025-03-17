@@ -122,7 +122,7 @@ def main():
         print_to_file(output_file, f"\n {noise_name} noise:")
         print_to_file_block(output_file, extended_metrics)
 
-    # 9. Training on Med-Noise  model.apply(initialize_weights) ????
+    # 9. Training on Med-Noise 
     train_and_validate(model, train_loader_med, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "med_" + model_filename)
 
@@ -131,7 +131,7 @@ def main():
         print_to_file(output_file, f"\n {noise_name} noise:")
         print_to_file_block(output_file, extended_metrics)
 
-    # 10. Training on High-Noise model.apply(initialize_weights) ????
+    # 10. Training on High-Noise 
     train_and_validate(model, train_loader_high, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
     torch.save(model.state_dict(), "high_" + model_filename)
 

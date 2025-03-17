@@ -3,7 +3,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from set_transformer.utils.metrics import evaluate_metrics_extended, combined_loss
-from data_processing_utils.data_processing_functions import print_to_file
+from data_processing_utils.data_processing_functions import print_to_file, print_to_file_block
 
 def initialize_weights(module):
     # Initialize Linear layers using Kaiming initialization for ReLU
@@ -40,7 +40,8 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
     A ReduceLROnPlateau scheduler reduces the learning rate when the training loss plateaus.
     """
     model.to(device)
-    
+
+
     # Set criterion if not provided.
     if criterion is None:
         if use_combined_loss:
@@ -65,10 +66,10 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
         for tokens, mask, targets in train_bar:
             tokens  = tokens.to(device)
             mask    = mask.to(device)
-            targets = targets.to(device)
+            targets = targets.to(device) #shape: (B, vocab_size)
             
             optimizer.zero_grad()
-            preds = model(tokens, mask)  # Expected shape: (B, vocab_size)
+            preds = model(tokens, mask)  # Predicted probabilities. Expected shape: (B, vocab_size)
             loss = criterion(preds, targets)
             loss.backward()
             optimizer.step()
@@ -87,13 +88,7 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
         # Evaluate using extended metrics.
         extended_metrics = evaluate_metrics_extended(model, val_loader, device, threshold)
         print_to_file(output_file, "\nExtended Evaluation Metrics (Epoch {}):".format(epoch+1))
-        print_to_file(output_file, "  Average per-genome Accuracy         : {:.4f}".format(extended_metrics["avg_accuracy"]))
-        print_to_file(output_file, "  Average per-genome Precision (macro)  : {:.4f}".format(extended_metrics["avg_precision"]))
-        print_to_file(output_file, "  Average per-genome Recall (macro)     : {:.4f}".format(extended_metrics["avg_recall"]))
-        print_to_file(output_file, "  Average per-genome F1 (macro)         : {:.4f}".format(extended_metrics["avg_f1"]))
-        print_to_file(output_file, "  Average Genome Size Difference (abs)  : {:.4f}".format(extended_metrics["avg_genome_size_diff"]))
-        print_to_file(output_file, "  Average FP Noise Removed Fraction   : {:.4f}".format(extended_metrics["avg_fp_removed_fraction"]))
-        print_to_file(output_file, "  Average FN Noise Recovered Fraction : {:.4f}".format(extended_metrics["avg_fn_recovered_fraction"]))    
+        print_to_file_block(output_file, extended_metrics)
 
     torch.save(model.state_dict(), "model_checkpoint_full.pth")
     print_to_file(output_file, "Model checkpoint saved to model_checkpoint_full.pth")        

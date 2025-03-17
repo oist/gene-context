@@ -30,35 +30,50 @@ class GenomeDataset(Dataset):
     def __getitem__(self, idx):
         # Get the gene counts and convert to binary target (presence/absence)
         row = self.df.iloc[idx]
+      #  print(f"row = {row}")
         counts = row[self.global_vocab].values.astype(np.float32)
+
+      #  print(f"counts = {counts}")
         target = (counts > 0).astype(np.float32)
-        
+        # print(f"fn rate = {self.false_negative_rate}")
+        # print(f"fp rate = {self.false_positive_rate}")
+        # print(f"len tar = {len(target)}")
+        # print(f"num of 1s = {sum(target)}")
+        # print(f"num of 0s = {len(target) - sum(target)}")
+
         observed_indices = []
         observed_counts = []
         # For each gene in the target, decide whether to keep it (simulate false negatives)
         for cog_idx, present in enumerate(target):
             if present:
-                # With probability false_negative_rate, drop this gene.
+                # If True -> skip and do not attach the cog to the observed list
                 if self.rng.random() < self.false_negative_rate:
                     continue
-                original_count = counts[cog_idx]
+                #original_count = counts[cog_idx]
                 # Add noise to the count (even though later we threshold to binary)
-                noise = 1;#self.rng.normal(loc=1.0, scale=self.count_noise_std)
-                noisy_count = max(original_count * noise, 0.0)
+                #noise = self.rng.normal(loc=1.0, scale=self.count_noise_std)
+                #noisy_count = max(original_count * noise, 0.0)
                 observed_indices.append(cog_idx)
-                observed_counts.append(noisy_count)
-        
-        # Simulate false positives: add a small number of genes that are truly absent.
-        num_false_positives = self.rng.poisson(lam=self.false_positive_rate * self.vocab_size)
+                observed_counts.append(1)
 
-        absent_indices = np.where(target == 0)[0]
+            else: # if the cog was originally absent
+                # If True -> add the absent cog to the observed list
+                if self.rng.random() < self.false_positive_rate:    
+                    observed_indices.append(cog_idx)
+                    observed_counts.append(1)  # Use 1 or modify for noisy false positives        
 
-        if len(absent_indices) > 0 and num_false_positives > 0:
-            false_pos = self.rng.choice(absent_indices, size=min(num_false_positives, len(absent_indices)), replace=False)
-            for fp in false_pos:
-                noisy_count = 1;#abs(self.rng.normal(loc=1.0, scale=self.count_noise_std))
-                observed_indices.append(fp)
-                observed_counts.append(noisy_count)
+        # # Simulate false positives: add a small number of genes that are truly absent.
+        # num_false_positives = self.rng.poisson(lam=self.false_positive_rate * self.vocab_size)
+
+        # absent_indices = np.where(target == 0)[0]
+
+        # if len(absent_indices) > 0 and num_false_positives > 0:
+        #     false_pos = self.rng.choice(absent_indices, size=min(num_false_positives, len(absent_indices)), replace=False)
+        #     for fp in false_pos:
+        #         noisy_count = 1;#abs(self.rng.normal(loc=1.0, scale=self.count_noise_std))
+        #         observed_indices.append(fp)
+        #         observed_counts.append(noisy_count)
+
         
         # Build token array: each token = [COG_index, noisy_count]
         if len(observed_indices) == 0:
@@ -66,6 +81,8 @@ class GenomeDataset(Dataset):
         else:
             tokens = np.stack([np.array(observed_indices, dtype=np.int64),
                                np.array(observed_counts, dtype=np.float32)], axis=-1)
+            
+     #   print(f"len observed_indices = {len(observed_indices)}")    
         
         sample = {
             'tokens': tokens,
