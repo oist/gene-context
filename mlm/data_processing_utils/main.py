@@ -155,34 +155,44 @@ def subsample_and_split_by_taxonomy(data, output_file, subsample_fraction=0.1, t
     return train_set, test_set
 
 def process_args():
+    print("Processing the input arguments...")
     parser = argparse.ArgumentParser(description="Process input arguments for the data reading and splitting.")
     parser.add_argument("--eggnog_csv", type=str, default="data/filtered_all_eggnog.csv", help="Eggnog data file path.")
     parser.add_argument("--ar_metadata", type=str, default="data/ar53_metadata_r220.tsv", help="Archaea data file path.")
     parser.add_argument("--bac_metadata", type=str, default="data/bac120_metadata_r220.tsv", help="Bacteria data file path.")
     parser.add_argument("--taxonomy_level", type=str, default="group", help="Taxonomy level for splitting into test/train datasets.")
     args = parser.parse_args()
-    return args
+    args_dict = {"eggnog_csv": args.eggnog_csv, "ar_metadata": args.ar_metadata, "bac_metadata": args.bac_metadata, "taxonomy_level": args.taxonomy_level}
+    return args_dict
 
 OUTPUT_DIRECTORY = 'data/train_test_splits'
 if not os.path.exists(OUTPUT_DIRECTORY):
     os.makedirs(OUTPUT_DIRECTORY)
 
-if __name__=='__main__':
-    print("Processing the input files...")
-
-    # 1. Read the input args
-    args = process_args()
-
-    # 2. Create the output directories and the log file
+def main(args_dict):
+    # Create the output directories and the log file
+    print("Creating the input directory...")
     output_directory_logs = f"{OUTPUT_DIRECTORY}/logs"
     if not os.path.exists(output_directory_logs):
         os.makedirs(output_directory_logs)
-    output_file = open(os.path.join(output_directory_logs, f"logs_{args.taxonomy_level}_level.log"), "w") 
+    output_file = open(os.path.join(output_directory_logs, f"logs_{args_dict['taxonomy_level']}_level.log"), "w") 
 
-    # 3. Read and merge the eggnog and metadata files
-    merged_df = process_eggnog_and_metadata(args.eggnog_csv, args.ar_metadata, args.bac_metadata, output_file)
+    # Read and merge the eggnog and metadata files
+    print("Reading and merging the input tables...")
+    merged_df = process_eggnog_and_metadata(args_dict["eggnog_csv"], args_dict["ar_metadata"], args_dict["bac_metadata"], output_file)
 
-    # 4. Split to the train and test datasets and save the result
-    subsample_and_split_by_taxonomy(merged_df, output_file, subsample_fraction=1, taxonomic_level=args.taxonomy_level, test_fraction=0.2, random_state=42)
-    print("The train/test splitting is finished!")
+    # Split to the train and test datasets and save the result
+    print("Splitting to train/test datasets ans saving the result...")
+    subsample_and_split_by_taxonomy(merged_df, output_file, subsample_fraction=1, taxonomic_level=args_dict["taxonomy_level"], test_fraction=0.2, random_state=42)
+    print("The train/test splitting is finished!")    
+    
+if __name__=='__main__':
+    print("Running the input data processing module...")
+
+    # 1. Read the input args
+    args_dict = process_args()
+    # 2. Run the main function
+    main(args_dict)
+
+
 

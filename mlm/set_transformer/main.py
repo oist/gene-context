@@ -54,17 +54,16 @@ def process_args():
     parser.add_argument("--num_sab", type=int, default=2, help="Number of SAB layers")  
     parser.add_argument("--num_epochs", type=int, default=10, help="Number of epochs")   
     args = parser.parse_args()
-    return args
+    args_dict = {"train_feather_path": args.train_feather_path, "test_feather_path": args.test_feather_path, "global_vocab_path": args.global_vocab_path, "batch_size": args.batch_size, "embedd_dim": args.embedd_dim, "num_heads": args.num_heads, "num_sab": args.num_sab, "num_epochs": args.num_epochs}
+    return args_dict
 
-def main():
-    # 1. Read the input args
-    args = process_args()
+def main(args_dict):
 
     # 2. Define the hyperparamerers of the model
-    batch_size = args.batch_size
-    embedd_dim = args.embedd_dim
-    num_heads = args.num_heads
-    num_sab = args.num_sab
+    batch_size = args_dict["batch_size"]
+    embedd_dim = args_dict["embedd_dim"]
+    num_heads = args_dict["num_heads"]
+    num_sab = args_dict["num_sab"]
     filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_BCE"
     model_filename = filename_specs + ".pth"
     output_filename = filename_specs + ".out"
@@ -74,9 +73,9 @@ def main():
     output_file = open(os.path.join(output_directory, output_filename), "w") 
 
     # 2. Load the train, test datasets, and the global dictionary (all COG names from the initial dataset)
-    train_df = pd.read_feather(args.train_feather_path)
-    val_df = pd.read_feather(args.test_feather_path)
-    global_vocab = load_list_from_txt(args.global_vocab_path)
+    train_df = pd.read_feather(args_dict["train_feather_path"])
+    val_df = pd.read_feather(args_dict["test_feather_path"])
+    global_vocab = load_list_from_txt(args_dict["global_vocab_path"])
     pad_idx = len(global_vocab) # padding size
 
     # 4. Generate train data loaders in different noise regimes
@@ -160,4 +159,6 @@ def main():
 
 
 if __name__=='__main__':
-    main()
+    # 1. Read the input args
+    args_dict = process_args()
+    main(args_dict)
