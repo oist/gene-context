@@ -110,7 +110,7 @@ def subsample_and_split_by_taxonomy(data, output_file, subsample_fraction=0.1, t
     unique_groups = subsampled[taxonomic_level].dropna().unique()
     print_to_file(output_file, "  Found {} unique groups at taxonomic level '{}'.".format(len(unique_groups), taxonomic_level))
     
-    rng = np.random.default_rng(random_state)
+    rng = np.random.RandomState(random_state)
     shuffled_groups = list(unique_groups)
     rng.shuffle(shuffled_groups)
     
