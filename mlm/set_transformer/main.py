@@ -54,7 +54,8 @@ def process_args():
     parser.add_argument("--num_sab", type=int, default=2, help="Number of SAB layers")  
     parser.add_argument("--num_epochs", type=int, default=10, help="Number of epochs")   
     args = parser.parse_args()
-    args_dict = {"train_feather_path": args.train_feather_path, "test_feather_path": args.test_feather_path, "global_vocab_path": args.global_vocab_path, "batch_size": args.batch_size, "embedd_dim": args.embedd_dim, "num_heads": args.num_heads, "num_sab": args.num_sab, "num_epochs": args.num_epochs}
+    args_dict = {"train_feather_path": args.train_feather_path, "test_feather_path": args.test_feather_path, "global_vocab_path": args.global_vocab_path, 
+                 "batch_size": args.batch_size, "embedd_dim": args.embedd_dim, "num_heads": args.num_heads, "num_sab": args.num_sab, "num_epochs": args.num_epochs}
     return args_dict
 
 def main(args_dict):
@@ -109,7 +110,7 @@ def main(args_dict):
     torch.cuda.empty_cache()
     print_to_file(output_file, "Training on device:", device)
 
-    num_epochs = args.num_epochs
+    num_epochs = args_dict["num_epochs"]
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     # 8. Training on Low-Noise 
