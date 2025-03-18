@@ -76,6 +76,8 @@ def main(args_dict):
     # 2. Load the train, test datasets, and the global dictionary (all COG names from the initial dataset)
     train_df = pd.read_feather(args_dict["train_feather_path"])
     val_df = pd.read_feather(args_dict["test_feather_path"])
+    #train_df = pd.read_pickle(args_dict["train_feather_path"])
+    #val_df = pd.read_pickle(args_dict["test_feather_path"])
     global_vocab = load_list_from_txt(args_dict["global_vocab_path"])
     pad_idx = len(global_vocab) # padding size
 

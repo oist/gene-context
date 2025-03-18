@@ -153,11 +153,11 @@ def subsample_and_split_by_taxonomy(data, output_file, subsample_fraction=0.1, t
     save_list_to_txt(test_groups, f'{OUTPUT_DIRECTORY}/{taxonomic_level}_test_split.txt')
     save_list_to_txt(train_group, f'{OUTPUT_DIRECTORY}/{taxonomic_level}_train_split.txt')
 
-   # save_df_as_feather(train_set, f'{OUTPUT_DIRECTORY}/cog_train_{taxonomic_level}_tax_level.feather')
-   # save_df_as_feather(test_set, f'{OUTPUT_DIRECTORY}/cog_test_{taxonomic_level}_tax_level.feather')
+    save_df_as_feather(train_set, f'{OUTPUT_DIRECTORY}/cog_train_{taxonomic_level}_tax_level.feather')
+    save_df_as_feather(test_set, f'{OUTPUT_DIRECTORY}/cog_test_{taxonomic_level}_tax_level.feather')
 
-    save_df_as_pickle(train_set, f'{OUTPUT_DIRECTORY}/cog_train_{taxonomic_level}_tax_level.pkl')
-    save_df_as_pickle(test_set, f'{OUTPUT_DIRECTORY}/cog_test_{taxonomic_level}_tax_level.pkl')
+    #save_df_as_pickle(train_set, f'{OUTPUT_DIRECTORY}/cog_train_{taxonomic_level}_tax_level.pkl')
+    #save_df_as_pickle(test_set, f'{OUTPUT_DIRECTORY}/cog_test_{taxonomic_level}_tax_level.pkl')
 
 
     return train_set, test_set
