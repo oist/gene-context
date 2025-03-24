@@ -35,6 +35,15 @@ EGGNOG_CSV = "data/filtered_all_eggnog.csv"
 AR_METADATA_TSV = "data/ar53_metadata_r220.tsv"
 BAC_MATADATA_TSV = "data/bac120_metadata_r220.tsv"
 
+"""
+How to run this script?
+
+cd ~\gene-context\mlm
+ python -m set_transformer.main --train_feather_path .\data\train_test_splits\cog_train_family_tax_level.feather  --test_feather_path .\data\train_test_splits\cog_test_family_tax_level.feather 
+ --global_vocab_path  .\data\train_test_splits\global_vocab.txt 
+
+"""
+
 
 def generate_noisy_dataset(df, global_vocab, batch_size, pad_idx, fn_rate, fp_rate, count_noise_std=0, random_state=42):
      dataset = GenomeDataset(df, global_vocab,
