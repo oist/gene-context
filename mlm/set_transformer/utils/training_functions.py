@@ -22,7 +22,7 @@ def initialize_weights(module):
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # --- Train and Validate Function ---
-def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, device, output_file, 
+def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, device, output_file, full_model_filename,
                        threshold=0.5, max_iters=10, use_focal_loss=False, focal_alpha=1.0, focal_gamma=2.0,combined_alpha=0.5, 
                        use_combined_loss=False, criterion=None):
     """
@@ -90,5 +90,5 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
         print_to_file(output_file, "\nExtended Evaluation Metrics (Epoch {}):".format(epoch+1))
         print_to_file_block(output_file, extended_metrics)
 
-    torch.save(model.state_dict(), "model_checkpoint_full.pth")
-    print_to_file(output_file, "Model checkpoint saved to model_checkpoint_full.pth")        
+    torch.save(model.state_dict(), full_model_filename)
+    print_to_file(output_file, f"Model checkpoint saved to {full_model_filename}")        

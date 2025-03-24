@@ -115,9 +115,11 @@ def main(args_dict):
     num_epochs = args_dict["num_epochs"]
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
+    full_model_filename = f"output_directory/full_{model_filename}"
+
     # 8. Training on Low-Noise 
-    train_and_validate(model, train_loader_low, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
-    torch.save(model.state_dict(), "low_" + model_filename)
+    train_and_validate(model, train_loader_low, val_loader, optimizer, num_epochs, device, output_file, full_model_filename, threshold=0.5)
+    torch.save(model.state_dict(), f"{output_directory}/low_" + model_filename)
 
     for noise_name, val_loader_noise in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
         extended_metrics = evaluate_metrics_extended(model, val_loader_noise, device, 0.5)
@@ -125,8 +127,8 @@ def main(args_dict):
         print_to_file_block(output_file, extended_metrics)
 
     # 9. Training on Med-Noise 
-    train_and_validate(model, train_loader_med, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
-    torch.save(model.state_dict(), "med_" + model_filename)
+    train_and_validate(model, train_loader_med, val_loader, optimizer, num_epochs, device, output_file, full_model_filename, threshold=0.5)
+    torch.save(model.state_dict(), f"{output_directory}/med_" + model_filename)
 
     for noise_name, val_loader_noise in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
         extended_metrics = evaluate_metrics_extended(model, val_loader_noise, device, 0.5)
@@ -134,8 +136,8 @@ def main(args_dict):
         print_to_file_block(output_file, extended_metrics)
 
     # 10. Training on High-Noise 
-    train_and_validate(model, train_loader_high, val_loader, optimizer, num_epochs, device, output_file, threshold=0.5)
-    torch.save(model.state_dict(), "high_" + model_filename)
+    train_and_validate(model, train_loader_high, val_loader, optimizer, num_epochs, device, output_file, full_model_filename, threshold=0.5)
+    torch.save(model.state_dict(), f"{output_directory}/high_" + model_filename)
 
     for noise_name, val_loader_noise in zip(["Low", "Med", "High"], [val_low_loader, val_med_loader, val_high_loader]):
         extended_metrics = evaluate_metrics_extended(model, val_loader_noise, device, 0.5)
