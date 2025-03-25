@@ -73,7 +73,6 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
         st_probs_np = probs.cpu().detach().numpy()  # shape: (B, V)
         # Pre-MLM discrete assignment: threshold at 0.5.
         discrete_assignment = (st_probs_np >= threshold).astype(int)
-        print(f"discrete_assignment = {len(discrete_assignment[0])}")
         
         targets_np = targets.cpu().detach().numpy().astype(int)
         tokens_np = tokens.cpu().detach().numpy()
@@ -87,17 +86,16 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
             global_pre_TN = np.zeros(V, dtype=int)
             global_pre_FP = np.zeros(V, dtype=int)
             global_pre_FN = np.zeros(V, dtype=int)
-            if apply_mlm:
-                global_mlm_TP = np.zeros(V, dtype=int)
-                global_mlm_TN = np.zeros(V, dtype=int)
-                global_mlm_FP = np.zeros(V, dtype=int)
-                global_mlm_FN = np.zeros(V, dtype=int)
+            # if apply_mlm:
+            #     global_mlm_TP = np.zeros(V, dtype=int)
+            #     global_mlm_TN = np.zeros(V, dtype=int)
+            #     global_mlm_FP = np.zeros(V, dtype=int)
+            #     global_mlm_FN = np.zeros(V, dtype=int)
         
         for i in range(batch_size):
             # Reconstruct observed (noisy) input.
             observed = np.zeros(V, dtype=int)
             valid_tokens = tokens_np[i][mask_np[i] == False]
-          #  print(f"valid_tokens  = {valid_tokens}")
             for token in valid_tokens:
                 cog_id = int(token[0])
                 if cog_id < V:
@@ -105,14 +103,13 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
             
             # Pre-MLM predictions from SetTransformer.
             pre_preds = discrete_assignment[i]
-
-          #  print(f"((targets_np[i] == 1) & (pre_preds == 1)) = {((targets_np[i] == 1) & (pre_preds == 1))}")
             
             # Compare target (true) values vs the model predictions on test 
-            global_pre_TP += ((targets_np[i] == 1) & (pre_preds == 1)).astype(int)
+            global_pre_TP += ((targets_np[i] == 1) & (pre_preds == 1)).astype(int) # element-wise sum
             global_pre_TN += ((targets_np[i] == 0) & (pre_preds == 0)).astype(int)
             global_pre_FP += ((targets_np[i] == 0) & (pre_preds == 1)).astype(int)
             global_pre_FN += ((targets_np[i] == 1) & (pre_preds == 0)).astype(int)
+
             
             # Compute "noisy" metrics: compare target (true) values vs noisy target
             TP_noisy = np.sum((targets_np[i] == 1) & (observed == 1))
@@ -122,6 +119,7 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
             noisy_acc = (TP_noisy + TN_noisy) / V
             prec_noisy = TP_noisy / (TP_noisy + FP_noisy) if (TP_noisy + FP_noisy) > 0 else 0.0
             rec_noisy = TP_noisy / (TP_noisy + FN_noisy) if (TP_noisy + FN_noisy) > 0 else 0.0
+            f1_noisy =  2 * prec_noisy * rec_noisy / (prec_noisy + rec_noisy) if (prec_noisy + rec_noisy) > 0 else 0.0
 
             # Compute pre-MLM metrics.
             TP = np.sum((targets_np[i] == 1) & (pre_preds == 1))
@@ -135,6 +133,8 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
             true_size = np.sum(targets_np[i])
             pre_pred_size = np.sum(pre_preds)
             genome_diff = np.abs(pre_pred_size / true_size) if true_size > 0 else np.nan
+
+
             fp_noise = (observed == 1) & (targets_np[i] == 0)
             fn_noise = (observed == 0) & (targets_np[i] == 1)
             fp_removed = (np.sum((pre_preds == 0) & fp_noise) / np.sum(fp_noise)
@@ -142,22 +142,23 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
             fn_recovered = (np.sum((pre_preds == 1) & fn_noise) / np.sum(fn_noise)
                             if np.sum(fn_noise) > 0 else np.nan)
             
-#             sample_dict = {
-#                 "sample_id": global_sample_index,
-#                 "noisy_accuracy": (np.sum((targets_np[i] == 1) & (observed == 1)) +
-#                                     np.sum((targets_np[i] == 0) & (observed == 0))) / V,
-#                 "noisy_precision": TP_noisy / (TP_noisy + FP_noisy) if (TP_noisy + FP_noisy) > 0 else 0.0,
-#                 "noisy_recall": TP_noisy / (TP_noisy + FN_noisy) if (TP_noisy + FN_noisy) > 0 else 0.0,
-#                 "noisy_f1": 2 * prec_noisy * rec_noisy / (prec_noisy + rec_noisy) if (prec_noisy + rec_noisy) > 0 else 0.0,
-#                 "noisy_genome_diff": np.abs(np.sum(observed) / true_size) if true_size > 0 else np.nan,
-#                 "accuracy": acc,
-#                 "precision": prec,
-#                 "recall": rec,
-#                 "f1": f1,
-#                 "genome_size_diff": genome_diff,
-#                 "fp_removed": fp_removed,
-#                 "fn_recovered": fn_recovered
-#             }
+
+            # Metrics for each sample
+            sample_dict = {
+                "sample_id": global_sample_index,
+                "noisy_accuracy": noisy_acc,# (np.sum((targets_np[i] == 1) & (observed == 1)) +np.sum((targets_np[i] == 0) & (observed == 0))) / V,
+                "noisy_precision": prec_noisy,#TP_noisy / (TP_noisy + FP_noisy) if (TP_noisy + FP_noisy) > 0 else 0.0,
+                "noisy_recall": rec_noisy,#TP_noisy / (TP_noisy + FN_noisy) if (TP_noisy + FN_noisy) > 0 else 0.0,
+                "noisy_f1": f1_noisy,#2 * prec_noisy * rec_noisy / (prec_noisy + rec_noisy) if (prec_noisy + rec_noisy) > 0 else 0.0,
+                "noisy_genome_diff": np.abs(np.sum(observed) / true_size) if true_size > 0 else np.nan,
+                "accuracy": acc,
+                "precision": prec,
+                "recall": rec,
+                "f1": f1,
+                "genome_size_diff": genome_diff,
+                "fp_removed": fp_removed,
+                "fn_recovered": fn_recovered
+            }
             
 #             # Optional: MLM refinement step.
 #             if apply_mlm:
@@ -218,29 +219,29 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
 #                     "MLM_fn_recovered": fn_recovered_mlm
 #                 })
             
-#             sample_metrics.append(sample_dict)
-#             global_sample_index += 1
+            sample_metrics.append(sample_dict)
+            global_sample_index += 1
 
-#     # After processing all samples, write per-COG metrics.
-#     # Create a dictionary with rows per COG index.
-#     per_cog_data = {
-#         "COG": global_vocab,
-#         "pre_TP": global_pre_TP,
-#         "pre_TN": global_pre_TN,
-#         "pre_FP": global_pre_FP,
-#         "pre_FN": global_pre_FN
-#     }
-#     if apply_mlm:
-#         per_cog_data.update({
-#             "MLM_TP": global_mlm_TP,
-#             "MLM_TN": global_mlm_TN,
-#             "MLM_FP": global_mlm_FP,
-#             "MLM_FN": global_mlm_FN
-#         })
-#     df_cog_metrics = pd.DataFrame(per_cog_data)
-#     df_cog_metrics.to_csv("COG_metrics_" + label_string + ".csv", index=False)
+    # After processing all samples, write per-COG metrics.
+    # Create a dictionary with rows per COG index.
+    per_cog_data = {
+        "COG": global_vocab,
+        "pre_TP": global_pre_TP,
+        "pre_TN": global_pre_TN,
+        "pre_FP": global_pre_FP,
+        "pre_FN": global_pre_FN
+    }
+    # if apply_mlm:
+    #     per_cog_data.update({
+    #         "MLM_TP": global_mlm_TP,
+    #         "MLM_TN": global_mlm_TN,
+    #         "MLM_FP": global_mlm_FP,
+    #         "MLM_FN": global_mlm_FN
+    #     })
+    df_cog_metrics = pd.DataFrame(per_cog_data)
+    df_cog_metrics.to_csv("COG_metrics_" + label_string + ".csv", index=False)
     
-#     return sample_metrics
+    return sample_metrics
 
 
 
@@ -288,7 +289,7 @@ def main(args_dict):
 def training_summary(val_df, global_vocab, pre_train_model):
 
     # Define FN rates to test and fixed FP rate
-    fn_rates = [0.0, 0.1, 0.25, 0.5, 0.75, 0.85,0.95,1.0]
+    fn_rates = [0.0, 0.1]#, 0.25, 0.5, 0.75, 0.85,0.95,1.0]
     fp_rate = 0.0
 
     all_sample_records = []  # Will collect records from both stages
@@ -307,54 +308,54 @@ def training_summary(val_df, global_vocab, pre_train_model):
         #                                             threshold=0.5, lower_thresh=-0.2, upper_thresh=0.8)
         pre_metrics = validate_per_sample_extended(pre_train_model, val_dataloader, device,global_vocab,label_string="FN"+repr(fn)+"_FP"+repr(fp_rate))
 
-    #     for rec in pre_metrics:
-    #         rec["FN_rate"] = fn
-    #         rec["Stage"] = "Pre-MLM"
-    #     # Print summary statistics for Pre-MLM stage (both "noisy" and processed metrics)
-    #     print(f"\nSummary for FN rate {fn}, Stage Pre-MLM (Noisy Input):")
-    #     for metric in ["noisy_accuracy", "noisy_precision", "noisy_recall", "noisy_f1", "noisy_genome_diff"]:
-    #         vals = [r[metric] for r in pre_metrics if r.get(metric) is not None and not np.isnan(r[metric])]
-    #         if len(vals) > 0:
-    #             mean_val = np.mean(vals)
-    #             q25 = np.nanpercentile(vals, 25)
-    #             median_val = np.nanpercentile(vals, 50)
-    #             q75 = np.nanpercentile(vals, 75)
-    #             print(f"  {metric.title():<20}: Mean={mean_val:.4f}, 25th={q25:.4f}, Median={median_val:.4f}, 75th={q75:.4f}")
-    #         else:
-    #             print(f"  {metric.title():<20}: No valid values")
+        for rec in pre_metrics:
+            rec["FN_rate"] = fn
+            rec["Stage"] = "Pre-MLM"
+        # Print summary statistics for Pre-MLM stage (both "noisy" and processed metrics)
+        print(f"\nSummary for FN rate {fn}, Stage Pre-MLM (Noisy Input):")
+        for metric in ["noisy_accuracy", "noisy_precision", "noisy_recall", "noisy_f1", "noisy_genome_diff"]:
+            vals = [r[metric] for r in pre_metrics if r.get(metric) is not None and not np.isnan(r[metric])]
+            if len(vals) > 0:
+                mean_val = np.mean(vals)
+                q25 = np.nanpercentile(vals, 25)
+                median_val = np.nanpercentile(vals, 50)
+                q75 = np.nanpercentile(vals, 75)
+                print(f"  {metric.title():<20}: Mean={mean_val:.4f}, 25th={q25:.4f}, Median={median_val:.4f}, 75th={q75:.4f}")
+            else:
+                print(f"  {metric.title():<20}: No valid values")
 
-    #     print(f"\nSummary for FN rate {fn}, Stage Post-SetTransformer (Processed):")
-    #     for metric in ["accuracy", "precision", "recall", "f1", "genome_size_diff", "fp_removed", "fn_recovered"]:
-    #         vals = [r[metric] for r in pre_metrics if r.get(metric) is not None and not np.isnan(r[metric])]
-    #         if len(vals) > 0:
-    #             mean_val = np.mean(vals)
-    #             q25 = np.nanpercentile(vals, 25)
-    #             median_val = np.nanpercentile(vals, 50)
-    #             q75 = np.nanpercentile(vals, 75)
-    #             print(f"  {metric.title():<20}: Mean={mean_val:.4f}, 25th={q25:.4f}, Median={median_val:.4f}, 75th={q75:.4f}")
-    #         else:
-    #             print(f"  {metric.title():<20}: No valid values")
+        print(f"\nSummary for FN rate {fn}, Stage Post-SetTransformer (Processed):")
+        for metric in ["accuracy", "precision", "recall", "f1", "genome_size_diff", "fp_removed", "fn_recovered"]:
+            vals = [r[metric] for r in pre_metrics if r.get(metric) is not None and not np.isnan(r[metric])]
+            if len(vals) > 0:
+                mean_val = np.mean(vals)
+                q25 = np.nanpercentile(vals, 25)
+                median_val = np.nanpercentile(vals, 50)
+                q75 = np.nanpercentile(vals, 75)
+                print(f"  {metric.title():<20}: Mean={mean_val:.4f}, 25th={q25:.4f}, Median={median_val:.4f}, 75th={q75:.4f}")
+            else:
+                print(f"  {metric.title():<20}: No valid values")
 
-    #     print(f"\nSummary for FN rate {fn}, Stage Post-MLM (Processed):")
-    #     for metric in ["MLM_accuracy", "MLM_precision", "MLM_recall", "MLM_f1", "MLM_genome_diff", "MLM_fp_removed", "MLM_fn_recovered"]:
-    #         vals = [r[metric] for r in pre_metrics if r.get(metric) is not None and not np.isnan(r[metric])]
-    #         if len(vals) > 0:
-    #             mean_val = np.mean(vals)
-    #             q25 = np.nanpercentile(vals, 25)
-    #             median_val = np.nanpercentile(vals, 50)
-    #             q75 = np.nanpercentile(vals, 75)
-    #             print(f"  {metric.title():<20}: Mean={mean_val:.4f}, 25th={q25:.4f}, Median={median_val:.4f}, 75th={q75:.4f}")
-    #         else:
-    #             print(f"  {metric.title():<20}: No valid values")
+        print(f"\nSummary for FN rate {fn}, Stage Post-MLM (Processed):")
+        for metric in ["MLM_accuracy", "MLM_precision", "MLM_recall", "MLM_f1", "MLM_genome_diff", "MLM_fp_removed", "MLM_fn_recovered"]:
+            vals = [r[metric] for r in pre_metrics if r.get(metric) is not None and not np.isnan(r[metric])]
+            if len(vals) > 0:
+                mean_val = np.mean(vals)
+                q25 = np.nanpercentile(vals, 25)
+                median_val = np.nanpercentile(vals, 50)
+                q75 = np.nanpercentile(vals, 75)
+                print(f"  {metric.title():<20}: Mean={mean_val:.4f}, 25th={q25:.4f}, Median={median_val:.4f}, 75th={q75:.4f}")
+            else:
+                print(f"  {metric.title():<20}: No valid values")
 
 
-    #     print("-" * 60)
-    #     all_sample_records.extend(pre_metrics)
+        print("-" * 60)
+        all_sample_records.extend(pre_metrics)
 
-    # # Combine all records into a DataFrame and save to CSV.
-    # df_metrics = pd.DataFrame(all_sample_records)
-    # df_metrics.to_csv("per_sample_combined_metrics_FP"+repr(fp_rate)+".csv", index=False)
-    # print("\nSaved per-sample combined metrics to per_sample_combined_metrics_FP"+repr(fp_rate)+".csv")
+    # Combine all records into a DataFrame and save to CSV.
+    df_metrics = pd.DataFrame(all_sample_records)
+    df_metrics.to_csv("per_sample_combined_metrics_FP"+repr(fp_rate)+".csv", index=False)
+    print("\nSaved per-sample combined metrics to per_sample_combined_metrics_FP"+repr(fp_rate)+".csv")
 
 
 if __name__=='__main__':
