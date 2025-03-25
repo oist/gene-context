@@ -124,7 +124,7 @@ def main(args_dict):
     num_epochs = args_dict["num_epochs"]
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    full_model_filename = f"output_directory/full_{model_filename}"
+    full_model_filename = f"{output_directory}/full_{model_filename}"
 
     # 8. Training on Low-Noise 
     train_and_validate(model, train_loader_low, val_loader, optimizer, num_epochs, device, output_file, full_model_filename, threshold=0.5)
