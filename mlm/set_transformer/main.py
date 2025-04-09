@@ -78,7 +78,7 @@ def main(args_dict):
     num_sab = args_dict["num_sab"]
     num_epochs = args_dict["num_epochs"]
     num_pma_seeds = args_dict["num_pma_seeds"]
-    filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_num_epochs_{num_epochs}_BCE"
+    filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_num_epochs_{num_epochs}_num_seeds_{num_pma_seeds}_BCE"
     model_filename = filename_specs + ".pth"
     output_filename = filename_specs + ".out"
     output_directory = f"set_transformer/output/{filename_specs}"
