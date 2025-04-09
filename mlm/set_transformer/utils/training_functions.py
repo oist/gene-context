@@ -59,6 +59,7 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2, verbose=True)
     
     for epoch in range(num_epochs):
+        # Training step
         model.train()
         running_loss = 0.0
         
@@ -82,9 +83,25 @@ def train_and_validate(model, train_loader, val_loader, optimizer, num_epochs, d
         print_to_file(output_file, "Epoch [{}/{}] Training Loss: {:.4f}, Learning Rate: {:.6f}".format(
             epoch+1, num_epochs, avg_loss, current_lr))
         
-        # Step the scheduler based on average training loss.
-        scheduler.step(avg_loss)
+
+        # Validation step
+        model.eval()
+        val_running_loss = 0.0
+        with torch.no_grad():
+            val_bar = tqdm(val_loader, desc="Epoch {} Validation".format(epoch+1))
+        for tokens, mask, targets in val_bar:
+            tokens  = tokens.to(device)
+            mask    = mask.to(device)
+            targets = targets.to(device) 
         
+            preds = model(tokens, mask)  # Predicted probabilities. Expected shape: (B, vocab_size)
+            loss = criterion(preds, targets)
+            val_running_loss += loss.item()
+
+        aver_val_loss = val_running_loss / len(val_loader)      
+        current_lr = optimizer.param_groups[0]['lr']
+        print_to_file(output_file, "Epoch [{}/{}] Validation Loss: {:.4f}, Learning Rate: {:.6f}".format(epoch+1, num_epochs, aver_val_loss, current_lr))
+
         # Evaluate using extended metrics.
         extended_metrics = evaluate_metrics_extended(model, val_loader, device, threshold)
         print_to_file(output_file, "\nExtended Evaluation Metrics (Epoch {}):".format(epoch+1))

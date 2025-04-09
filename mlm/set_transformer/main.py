@@ -20,6 +20,7 @@ Tested with Python 3.7.
 """
 import gc
 import os
+import json
 import argparse
 import torch
 import torch.optim as optim
@@ -74,13 +75,26 @@ def main(args_dict):
     embedd_dim = args_dict["embedd_dim"]
     num_heads = args_dict["num_heads"]
     num_sab = args_dict["num_sab"]
-    filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_BCE"
+    num_epochs = args_dict["num_epochs"]
+    filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_num_epochs_{num_epochs}_BCE"
     model_filename = filename_specs + ".pth"
     output_filename = filename_specs + ".out"
-    output_directory = "set_transformer/output"
+    output_directory = f"set_transformer/output/{filename_specs}"
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
     output_file = open(os.path.join(output_directory, output_filename), "w") 
+
+    # Save a config file
+    config = {
+        "batch_size": batch_size,
+        "embedd_dim" : embedd_dim,
+        "num_heads": num_heads,
+        "num_sab": num_sab,
+        "num_epochs": num_epochs
+    }
+
+    with open(f"{output_directory}/specs_{filename_specs}.json", "w") as f:
+        json.dump(config, f, indent=4)
 
     # 2. Load the train, test datasets, and the global dictionary (all COG names from the initial dataset)
     train_df = pd.read_feather(args_dict["train_feather_path"])

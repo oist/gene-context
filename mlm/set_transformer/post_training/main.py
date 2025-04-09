@@ -141,7 +141,7 @@ def validate_per_sample_extended(set_transformer, dataloader, device,global_voca
                           if np.sum(fp_noise) > 0 else np.nan)
             fn_recovered = (np.sum((pre_preds == 1) & fn_noise) / np.sum(fn_noise)
                             if np.sum(fn_noise) > 0 else np.nan)
-            
+                        
 
             # Metrics for each sample
             sample_dict = {

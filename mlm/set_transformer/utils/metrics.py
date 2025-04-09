@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 
 import torch.nn.functional as F
+from sklearn.metrics import roc_auc_score
 
 
 # --- Helper Loss Functions ---
@@ -99,7 +100,7 @@ def evaluate_metrics_extended(model, dataloader, device, threshold=0.5):
     binary_preds = (all_preds >= threshold).astype(int)
     N, V = all_targets.shape
     
-    per_sample_acc, per_sample_prec, per_sample_rec, per_sample_f1 = [], [], [], []
+    per_sample_acc, per_sample_prec, per_sample_rec, per_sample_f1, per_sample_roc_auc  = [], [], [], [], []
     
     # Compute per-sample classification metrics.
     for i in range(N):
@@ -111,10 +112,13 @@ def evaluate_metrics_extended(model, dataloader, device, threshold=0.5):
         prec = TP / (TP + FP) if (TP + FP) > 0 else 0.0
         rec = TP / (TP + FN) if (TP + FN) > 0 else 0.0
         f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
+        roc_auc = roc_auc_score(all_targets[i], all_preds[i])
+                
         per_sample_acc.append(acc)
         per_sample_prec.append(prec)
         per_sample_rec.append(rec)
         per_sample_f1.append(f1)
+        per_sample_roc_auc.append(roc_auc)
     
     # Average the noise correction metrics over samples that had any noise.
     avg_fp_removed = np.mean(fp_removed_list) if fp_removed_list else float('nan')
@@ -127,6 +131,7 @@ def evaluate_metrics_extended(model, dataloader, device, threshold=0.5):
         "avg_f1": np.mean(per_sample_f1),
         "avg_genome_size_diff": np.mean(abs_genome_size_diff_list),
         "avg_fp_removed_fraction": avg_fp_removed,
-        "avg_fn_recovered_fraction": avg_fn_recovered
+        "avg_fn_recovered_fraction": avg_fn_recovered,
+        "avg_roc_auc": np.mean(per_sample_roc_auc),
     }
     return metrics
