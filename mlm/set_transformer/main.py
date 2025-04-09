@@ -63,9 +63,10 @@ def process_args():
     parser.add_argument("--num_heads", type=int, default=4, help="Number of heads")
     parser.add_argument("--num_sab", type=int, default=2, help="Number of SAB layers")  
     parser.add_argument("--num_epochs", type=int, default=10, help="Number of epochs")   
+    parser.add_argument("--num_pma_seeds", type=int, default=1, help="Number of seeds in the PMA layer")
     args = parser.parse_args()
     args_dict = {"train_feather_path": args.train_feather_path, "test_feather_path": args.test_feather_path, "global_vocab_path": args.global_vocab_path, 
-                 "batch_size": args.batch_size, "embedd_dim": args.embedd_dim, "num_heads": args.num_heads, "num_sab": args.num_sab, "num_epochs": args.num_epochs}
+                 "batch_size": args.batch_size, "embedd_dim": args.embedd_dim, "num_heads": args.num_heads, "num_sab": args.num_sab, "num_epochs": args.num_epochs, "num_pma_seeds": args.num_pma_seeds}
     return args_dict
 
 def main(args_dict):
@@ -76,6 +77,7 @@ def main(args_dict):
     num_heads = args_dict["num_heads"]
     num_sab = args_dict["num_sab"]
     num_epochs = args_dict["num_epochs"]
+    num_pma_seeds = args_dict["num_pma_seeds"]
     filename_specs = f"set_transf_embedd_{embedd_dim}_heads_{num_heads}_sab_{num_sab}_num_epochs_{num_epochs}_BCE"
     model_filename = filename_specs + ".pth"
     output_filename = filename_specs + ".out"
@@ -90,7 +92,8 @@ def main(args_dict):
         "embedd_dim" : embedd_dim,
         "num_heads": num_heads,
         "num_sab": num_sab,
-        "num_epochs": num_epochs
+        "num_epochs": num_epochs,
+        "num_pma_seeds": num_pma_seeds
     }
 
     with open(f"{output_directory}/specs_{filename_specs}.json", "w") as f:
@@ -119,7 +122,7 @@ def main(args_dict):
     gc.collect() # free Python memory
     torch.cuda.empty_cache() # free unused GPU memory
 
-    model = GenomeSetTransformer(vocab_size=len(global_vocab), d_model=embedd_dim, num_heads=num_heads, num_sab=num_sab, dropout=0.1)
+    model = GenomeSetTransformer(vocab_size=len(global_vocab), d_model=embedd_dim, num_heads=num_heads, num_sab=num_sab, dropout=0.1, num_pma_seeds =num_pma_seeds)
     model.apply(initialize_weights)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

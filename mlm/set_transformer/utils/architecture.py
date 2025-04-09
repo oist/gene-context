@@ -50,7 +50,7 @@ class PMA(nn.Module):
     
 
 class GenomeSetTransformer(nn.Module):
-    def __init__(self, vocab_size, d_model=256, num_heads=4, num_sab=2, dropout=0.1):
+    def __init__(self, vocab_size, d_model=256, num_heads=4, num_sab=2, dropout=0.1, num_pma_seeds = 1):
         """
         The model architecture:
           - Embedding layer for COG tokens (with an extra pad token).
@@ -69,7 +69,7 @@ class GenomeSetTransformer(nn.Module):
         # Stack of SAB blocks.
         self.sab_blocks = nn.ModuleList([SAB(dim=d_model, num_heads=num_heads, dropout=dropout) for _ in range(num_sab)])
         # PMA module for global pooling.
-        self.pma = PMA(dim=d_model, num_seeds=1, num_heads=num_heads, dropout=dropout)
+        self.pma = PMA(dim=d_model, num_seeds=num_pma_seeds, num_heads=num_heads, dropout=dropout)
         # Decoder now expects concatenated features (global + local), so input dim is 2*d_model.
         self.decoder = nn.Sequential(
             nn.Linear(d_model * 2, d_model),
@@ -91,6 +91,7 @@ class GenomeSetTransformer(nn.Module):
         binary_counts = (tokens[:, :, 1].float() > 0).float().unsqueeze(-1)
         # Get embeddings and project counts.
         emb_cog = self.cog_embedding(cog_ids)
+
         emb_count = self.count_linear(binary_counts)
         # Sum both representations.
         X = emb_cog + emb_count  # Shape: (B, N, d_model)
