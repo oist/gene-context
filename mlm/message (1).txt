@@ -1,0 +1,66 @@
+===========================================
+Noise Modeling Comparison: Set Transformer vs. Binary MLM
+===========================================
+
+Both the Set Transformer and the Binary MLM models aim to reconstruct the true binary gene presence profile for genomes. However, they employ different strategies for simulating and handling noise in the input data.
+
+-------------------------------------------
+Set Transformer Noise Modeling
+-------------------------------------------
+In the Set Transformer design, each genome is represented as an unordered set of tokens. Each token is a pair (COG_index, noisy_count), where the COG_index explicitly encodes the identity of a gene family (e.g., a COG or arCOG), and the noisy_count (typically thresholded to 0 or 1) represents the observed signal, which may be corrupted. Noise is simulated in two explicit ways:
+
+1. **False Negatives (Missing Genes):**  
+   For each gene that is truly present (y = 1), there is a probability (p_FN) that the token is dropped from the input. This mimics the loss of true signals due to experimental limitations.
+
+2. **False Positives (Spurious Genes):**  
+   Conversely, for genes that are truly absent (y = 0), extra tokens may be spuriously added with a probability proportional to a false positive rate (p_FP). This simulates contamination or other noise that introduces non-existent signals.
+
+The network is trained to denoise these inputs by reconstructing the full gene profile y ∈ {0,1}^|V|. The reconstruction loss is computed using Binary Cross-Entropy (BCE):
+
+    L_BCE = − (1/|V|) ∑[ y_v * log(ŷ_v) + (1 − y_v) * log(1 − ŷ_v) ]
+    
+where ŷ_v is the predicted probability for gene v. This explicit noise modeling forces the network to learn robust interactions among the observed tokens through attention (via SAB and PMA blocks) and to effectively recover missing signals while suppressing spurious ones.
+
+-------------------------------------------
+Binary MLM Noise Modeling
+-------------------------------------------
+In the Binary MLM approach, each genome is encoded as a fixed-length sequence of tokens, where the sequence length L equals the total number of gene families considered (here, only COGs). The vocabulary is minimal (only {0, 1, mask}); here, 0 represents absence, 1 presence, and “mask” is a special token. The noise mechanism is primarily based on random masking:
+
+- **Random Masking as Noise:**  
+  During training, a fixed fraction (e.g., 15%) of the positions in the sequence is randomly selected and replaced with the mask token. This intentional masking simulates missing information by removing the observed value at those positions. The model is then trained to predict the original token (0 or 1) at these masked positions using a cross-entropy loss:
+
+      L_MLM = − ∑_{i ∈ M} log P(xᵢ | x̃)
+      
+  where M is the set of masked indices, xᵢ is the true value, and x̃ is the corrupted input sequence.
+
+- **Optional Extended Noise Simulation:**  
+  During evaluation, additional noise may be introduced by flipping token values: a token originally 1 may be flipped to 0 with a defined false negative rate, and vice versa for false positives. However, during standard training, noise is modeled solely via the masking process.
+
+In this design, noise is applied uniformly across positions, and the gene identity is encoded implicitly by the absolute position in the sequence rather than by a unique token. The loss function is computed only over the masked positions, encouraging the model to infer missing values from contextual cues.
+
+-------------------------------------------
+Comparison and Summary
+-------------------------------------------
+The primary differences in noise modeling between the two designs are as follows:
+
+• **Explicit vs. Implicit Noise Simulation:**  
+   - The Set Transformer explicitly simulates two types of noise (false negatives and false positives) by dropping true signals and adding spurious tokens. This explicit modeling makes the network directly accountable for both missing and extra signals.
+   - The Binary MLM relies on random masking as the sole noise mechanism during training, where a fixed fraction of tokens is hidden. Extended evaluations may add flipping noise, but the primary training signal is based on masked token prediction.
+
+• **Input Structure and Gene Identity Encoding:**  
+   - In the Set Transformer, each token (with its unique COG/arCOG identity) is only present if that gene is observed in the genome. The input is a sparse unordered set, and noise is added directly to these tokens.
+   - In the Binary MLM, the full gene catalog is represented as a sequence of fixed length L, with gene identity encoded by the token’s position. The minimal vocabulary (0, 1, mask) means that noise is applied uniformly across the sequence.
+
+• **Loss Computation:**  
+   - The Set Transformer computes a reconstruction loss (BCE) over the entire gene profile, thereby evaluating the model’s ability to denoise both missing and spurious signals.
+   - The Binary MLM computes the loss only over the masked positions using cross-entropy, focusing on predicting the original token from the corrupted input.
+
+• **Impact on Training and Robustness:**  
+   - The explicit noise modeling in the Set Transformer is well-suited to real-world genomic data, where both missing and extra signals occur. The model learns to robustly recover the true profile through rich inter-token interactions.
+   - The Binary MLM’s simpler noise model is common in language modeling tasks but may be less effective in capturing the full complexity of noise in genomic data, especially since its attention mechanism scales quadratically with the full sequence length.
+
+In summary, while both models are designed to recover the true gene presence profile, the Set Transformer directly incorporates detailed noise simulation into its training (modeling both false negatives and false positives), whereas the Binary MLM relies on random masking to simulate missing data. This leads to differences in how each model learns to denoise its inputs and ultimately affects their performance and robustness in reconstructing genome profiles.
+
+===========================================
+End of Noise Modeling Comparison
+===========================================
