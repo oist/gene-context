@@ -347,7 +347,7 @@ false_posit_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 false_negat_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 
-def tsne_plot(X_train, y_train = None, colors = None):
+def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, colors = None):
     scaler = MaxAbsScaler()
 
     # Fit and transform the data
@@ -355,7 +355,7 @@ def tsne_plot(X_train, y_train = None, colors = None):
 
 
     # Initialize and apply t-SNE
-    tsne = TSNE(n_components=2, perplexity=50, learning_rate=100, max_iter=3000, init='pca') 
+    tsne = TSNE(n_components=2, perplexity=perplexity, learning_rate=learning_rate, max_iter=3000, init='pca', random_state=random_seed) 
 
     if colors is None:
         listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(np.unique(y_train)))))
@@ -363,7 +363,6 @@ def tsne_plot(X_train, y_train = None, colors = None):
     else:
         listed_cmap = colors    
 
-   # plt.figure(figsize=(4, 4))
 
     X_tsne = tsne.fit_transform(X_train_scal) 
 
@@ -376,6 +375,8 @@ def tsne_plot(X_train, y_train = None, colors = None):
             plt.colorbar()    
     else:
         plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s = 10)
+    plt.xlabel("tSNE1")
+    plt.ylabel("tSNE2")
     plt.title("tSNE space")    
     plt.grid(True, zorder=1)      
 
