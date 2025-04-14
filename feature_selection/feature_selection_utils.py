@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import shap
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MaxAbsScaler
 from sklearn.model_selection import cross_val_score
@@ -135,18 +135,30 @@ def random_forest_features(X_train, y_train, X_train_column_names, contin_flag =
 
     return sorted_indices, sorted_importances, sorted_names
 
-def shap_features(X_train, y_train, X_column_names, device):
-    # 1. Train the pipeline
-    pipe = make_pipeline(
-        XGBClassifier(
-            n_jobs=THREADS if device == "cpu" else None,
-            tree_method="gpu_hist" if device != "cpu" else "hist"
+def shap_features(X_train, y_train, X_column_names, device, contin_flag = False):
+    if contin_flag == False:
+        pipe = make_pipeline(
+            XGBClassifier(
+                n_jobs=THREADS if device == "cpu" else None,
+                tree_method="gpu_hist" if device != "cpu" else "hist"
+            )
         )
-    )
-    pipe.fit(X_train.cpu(), y_train.cpu())
+        pipe.fit(X_train.cpu(), y_train.cpu())
+        model = pipe.named_steps['xgbclassifier']
+    else:    
+        model = XGBRegressor(
+        n_jobs=-1,                # Use all CPU cores
+        tree_method="hist",   # Use "hist" for CPU, "gpu_hist" for GPU
+        objective="reg:squarederror",  # Default loss function for regression
+        )
+        model.fit(X_train.cpu(), y_train.cpu())
+
+    # 1. Train the pipeline
+
+  #  pipe.fit(X_train.cpu(), y_train.cpu())
 
     # 2. Extract trained model
-    model = pipe.named_steps['xgbclassifier']
+   # model = pipe.named_steps['xgbclassifier']
 
     # 3. Convert X to numpy
     X_np = X_train.cpu().numpy()
