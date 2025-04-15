@@ -6,7 +6,7 @@ import argparse
 import polars as pl
 
 """
-This script generates lists of taxonomy group (e.g. phylum, class, family) that are used for splitting the input data into test and train datasets.
+This script splits the input data into train and test with respect to the desired taxonomy group (e.g. phylum, class, family).
 
 Inputs:
     - gtdb metadata files (stored in ~/gene-context/phenotype_prediction/data_preparation/gtdb_files/),
