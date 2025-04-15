@@ -46,7 +46,7 @@ def process_args():
     args = parser.parse_args()
     return args
 
-def save_selected_data_and_annot(df, groups, tax_level, filename_data, filename_annot):
+def save_selected_data_and_annot(df, groups, tax_level, filename_data, filename_annot, filename_taxa):
     # Prep the df
     df_filter = df.filter(pl.col(tax_level).is_in(groups))
     print("Training set has {} rows".format(len(df_filter)))
@@ -54,6 +54,10 @@ def save_selected_data_and_annot(df, groups, tax_level, filename_data, filename_
     # Select accession and accession and save as a csv
     train_df_annot = df_filter.select(["accession", "annotation"])
     train_df_annot.write_csv(filename_annot, separator="\t")
+
+    # Save taxa groups as a csv
+    df_taxa = df_filter.select(["accession", tax_level])
+    df_taxa.write_csv(filename_taxa, separator="\t")
 
     # Select the counts and save as a csv
     df_filter = df_filter.drop([tax_level])
@@ -129,10 +133,12 @@ if __name__ == '__main__':
         # Save the train/test data files to txt files
         train_data_filename = f"{args.output_dir}/train_data_{tax_level}_tax_level"
         train_annot_filename = f"{args.output_dir}/train_annot_{tax_level}_tax_level"
-        save_selected_data_and_annot(joined_df, all_groups, tax_level, train_data_filename, train_annot_filename)
+        train_taxa_filename = f"{args.output_dir}/train_taxa_names_{tax_level}_tax_level"
+        save_selected_data_and_annot(joined_df, all_groups, tax_level, train_data_filename, train_annot_filename, train_taxa_filename)
 
-        train_data_filename = f"{args.output_dir}/test_data_{tax_level}_tax_level"
-        train_annot_filename = f"{args.output_dir}/test_annot_{tax_level}_tax_level"
-        save_selected_data_and_annot(joined_df, testing_families, tax_level, train_data_filename, train_annot_filename)
+        test_data_filename = f"{args.output_dir}/test_data_{tax_level}_tax_level"
+        test_annot_filename = f"{args.output_dir}/test_annot_{tax_level}_tax_level"
+        test_taxa_filename = f"{args.output_dir}/test_taxa_names_{tax_level}_tax_level"
+        save_selected_data_and_annot(joined_df, testing_families, tax_level, test_data_filename, test_annot_filename, test_taxa_filename)
 
         print("Finished!")
