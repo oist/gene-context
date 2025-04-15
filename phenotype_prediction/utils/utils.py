@@ -178,6 +178,80 @@ def read_ogt_data(X_filename, y_filename, taxa_filename, device):
       taxa_label = taxa_label.iloc[:, -1].tolist()
       return X_val, y_label, X_train_column_names[1:], taxa_label
 
+def read_aerob_data(
+    X_data_path='../data_aerob/all_gene_annotations.added_incompleteness_and_contamination.tsv', 
+    y_data_path = '../data_aerob/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv',
+    bac_phylogeny_data_path='../data_aerob/bac120_metadata_r202.tsv', 
+    arch_phylogeny_data_path='../data_aerob/ar122_metadata_r202.tsv',
+    target_column = 'oxytolerance'):
+    """
+    Read aerobicity data:
+    :param str X_data_path: Path to the feature table
+    :param str y: Path to the labels table
+    :param str bac_phylogeny_data_path: Path to the phylogenetic annotation table for bacteria
+    :param arch_phylogeny_data_path: Path to the phylogenetic annotation table for archaeae
+    :param target_column: Column name of the target
+    :return: pandas.DataFrame
+    """
+    
+    # Read GTDB phylogenetic annotation table
+    gtdb = pl.concat([
+        pl.read_csv(bac_phylogeny_data_path, separator='\t'),
+        pl.read_csv(arch_phylogeny_data_path, separator='\t')
+    ])
+    gtdb = gtdb.filter(pl.col("gtdb_representative") == "t")
+    print("Read in {} GTDB representatives".format(len(gtdb)))
+    
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(0).alias("domain"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(1).alias("phylum"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(2).alias("class"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(3).alias("order"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(4).alias("family"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(5).alias("genus"))
+    
+    # Read feature table
+    X_data = pl.read_csv(X_data_path, separator='\t')
+    
+    # Read y
+    y_data = pl.read_csv(y_data_path, separator='\t')
+    y_data = y_data.unique() # There are some duplicates in the cyanos, so dedup
+
+    # Add phylogenetic annotation (join based on accession)
+    full_data = X_data.join(gtdb.select(['accession','domain', 'phylum','class','order','family','genus']), on="accession", how="left")
+    full_data = full_data.join(y_data, on="accession", how="inner") # Inner join because test accessions are in y1 but not in full_data
+    
+    # Use data w/o noise: w/o FP FN
+    print(f'\nData with noise: {len(full_data)}')
+    full_data = full_data.filter(pl.col("false_negative_rate") == 0)
+    full_data = full_data.filter(pl.col("false_positive_rate") == 0)
+    print(f'Data without noise: {len(full_data)}')
+
+    # Map y labels
+    y = y_data
+    
+    classes_map = {
+        'anaerobe': 0,
+        'aerobe': 1,
+    }      
+    
+    y = full_data.with_columns(
+        pl.col(target_column)
+        .replace_strict(classes_map, default='unknown')
+        .alias(target_column)
+    )
+    y = y.with_columns(
+        pl.col(target_column).cast(pl.Int32)  # Change to Int32
+    )    
+    print("\nCounts of y:", y.group_by(target_column).agg(pl.len()))
+    y = y.to_pandas().iloc[:, -1]
+
+    # Make X dataframe
+    X = full_data.select(pl.exclude(['accession',target_column,'domain','phylum','class','order','family','genus','false_negative_rate','false_positive_rate'])).to_pandas()
+    # Blacklist these as they aren't in the current ancestral file, not sure why
+    X = X.drop(['COG0411', 'COG0459', 'COG0564', 'COG1344', 'COG4177'], axis=1)
+
+    return X, y, full_data
+
 def process_aerob_dataset(X_filename, y_filename, device, remove_noise):
     d3_train, X_train, y_train = read_xy_data(X_filename, y_filename, remove_noise)
     d_gtdb_train = d3_train.to_pandas()
