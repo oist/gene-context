@@ -33,11 +33,11 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def read_ogt_data(device, num_class, ogt_continuous_flag, precence_only_flag = False):
+def read_ogt_data11(device, num_class, ogt_continuous_flag, precence_only_flag = False):
     # Read the csv file with keggs
     try:
         filename = "data_ogt/kegg.csv"
-        df_keggs = pd.read_csv(filename,sep=",")
+        df_keggs = pd.readc_sv(filename,sep=",")
     except FileNotFoundError as e: 
         filename = "../data_ogt/kegg.csv"
         df_keggs = pd.read_csv(filename,sep=",")
@@ -136,6 +136,41 @@ def read_diderm_data(X_filename, y_filename, taxa_filename, device):
       y_label = pd.read_csv(y_filename,sep="\t")
       y_label = y_label.drop(columns=['accession'])
       y_label = y_label.iloc[:, 0].map({'Diderm': 0, 'Monoderm': 1})
+      y_label = torch.tensor(y_label.values).to(device)
+      y_label = y_label.float()
+
+      taxa_label = pd.read_csv(taxa_filename,sep="\t")
+      taxa_label = taxa_label.iloc[:, -1].tolist()
+      return X_val, y_label, X_train_column_names[1:], taxa_label
+
+def read_host_data(X_filename, y_filename, taxa_filename, device):
+   
+      df_x_data = pd.read_csv(X_filename,sep="\t")
+      X_train_column_names = df_x_data.columns
+      X_val = df_x_data.drop(columns=['accession']).values
+      X_val = torch.tensor(X_val)
+      X_val = X_val.float().to(device)
+
+      y_label = pd.read_csv(y_filename,sep="\t")
+      y_label = y_label.drop(columns=['accession'])
+      y_label = y_label.iloc[:, 0].map({'ecological': 0, 'host': 1})
+      y_label = torch.tensor(y_label.values).to(device)
+      y_label = y_label.float()
+
+      taxa_label = pd.read_csv(taxa_filename,sep="\t")
+      taxa_label = taxa_label.iloc[:, -1].tolist()
+      return X_val, y_label, X_train_column_names[1:], taxa_label
+
+def read_ogt_data(X_filename, y_filename, taxa_filename, device):
+   
+      df_x_data = pd.read_csv(X_filename,sep="\t")
+      X_train_column_names = df_x_data.columns
+      X_val = df_x_data.drop(columns=['accession']).values
+      X_val = torch.tensor(X_val)
+      X_val = X_val.int().to(device)
+
+      y_label = pd.read_csv(y_filename,sep="\t")
+      y_label = y_label.drop(columns=['accession'])
       y_label = torch.tensor(y_label.values).to(device)
       y_label = y_label.float()
 
@@ -276,7 +311,7 @@ def generate_colors_from_colormap(colormap_name, N):
    
    return listed_cmap, colors
 
-def pca_run_and_plot(X_train_val, n_compon, y_train_val=None, category_names=None, colors=None):
+def pca_run_and_plot(X_train_val, n_compon, y_train_val=None, category_names=None, colors=None, legend_flag=False):
     # Scale the data using MaxAbsScaler
     scaler = MaxAbsScaler()
     X_scaled = scaler.fit_transform(X_train_val)
@@ -318,9 +353,9 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val=None, category_names=Non
             handles = [Line2D([0], [0], marker='o', color='w',
                               markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10)
                        for i in range(len(unique_ids))]
-
-            # plt.legend(handles=handles, labels=labels, loc='upper center',
-            #            title="Categories", ncol=5)
+            if legend_flag:
+                plt.legend(handles=handles, labels=labels, loc='upper center',
+                            title="Categories", ncol=5)
         else:
             plt.colorbar()
     else:

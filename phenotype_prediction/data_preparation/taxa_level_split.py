@@ -50,7 +50,7 @@ def process_args():
 def save_selected_data_and_annot(df, groups, tax_level, filename_data, filename_annot, filename_taxa):
     # Prep the df
     df_filter = df.filter(pl.col(tax_level).is_in(groups))
-    print("Training set has {} rows".format(len(df_filter)))
+    print("The set has {} rows".format(len(df_filter)))
 
     # Select accession and accession and save as a csv
     train_df_annot = df_filter.select(["accession", "annotation"])
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         
         # Read input csv with annotations
         input_df_annot = pl.read_csv(args.input_annotation_csv, separator="\t")
-        old_name = input_df_annot.columns[1]
+        old_name = input_df_annot.columns[-1]
         input_df_annot = input_df_annot.rename({old_name: "annotation"})
 
         # Read input count table
@@ -98,7 +98,11 @@ if __name__ == '__main__':
 
         # Concatenate it with the gtdb df
         joined_df = gtdb_df.join(input_df_annot, on="accession", how="left")
+        
         joined_df = input_df_counts.join(joined_df, on="accession", how="left")
+
+        joined_df = joined_df.filter(pl.col("annotation").is_not_null())
+        joined_df = joined_df.filter(pl.col(tax_level).is_not_null())
 
         # Find all taxonomy groups at the provided input level
         testing_families = set()
@@ -114,7 +118,7 @@ if __name__ == '__main__':
         while testing_set_size < len(joined_df) * TEST_DATA_SIZE:
             group = all_groups.pop()
             testing_families.add(group)
-            testing_set_size += len(joined_df.filter(pl.col(tax_level) == group))
+            testing_set_size += len(joined_df.filter(pl.col(tax_level) == group))  
         print(f"Found {len(all_groups)} training groups at {tax_level} taxonomy level, comprising {len(joined_df) - testing_set_size} data points")    
         print(f"Found {len(testing_families)} testing groups at {tax_level} taxonomy level, comprising {testing_set_size} data points")
 
@@ -127,9 +131,9 @@ if __name__ == '__main__':
         test_filename = f"{args.output_dir}/test_groups_{tax_level}_tax_level"
 
         with open(train_filename, "w") as f:
-            f.write("\n".join(all_groups))
+            f.write("\n".join(x for x in all_groups if x is not None))
         with open(test_filename, "w") as f:
-            f.write("\n".join(testing_families))
+            f.write("\n".join(x for x in testing_families if x is not None))    
 
         # Save the train/test data files to txt files
         train_data_filename = f"{args.output_dir}/train_data_{tax_level}_tax_level"
