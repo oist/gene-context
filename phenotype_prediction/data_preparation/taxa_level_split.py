@@ -19,7 +19,8 @@ Outputs:
     - txt file with taxonomy groups for training,
     - txt file with taxonomy groups for testing;
     - test/train csv's with annotations,
-    - test/train csv's with COG counts.
+    - test/train csv's with COG counts,
+    - test/train csv's with the corresponding taxa group names.
 
 How to run this script?
     cd ~/gene-context/phenotype_prediction
