@@ -178,8 +178,7 @@ def shap_features(X_train, y_train, X_column_names, device, contin_flag = False)
     sorted_names = [X_column_names[i] for i in sorted_indices]
 
     # 7. Summary plot
-    plt.figure(figsize=(5, 5))
-    shap.summary_plot(shap_vals, X_np, feature_names=X_column_names)
+    shap.summary_plot(shap_vals, X_np, feature_names=X_column_names, plot_size = (5,5))
     return sorted_indices, sorted_importances, sorted_names
 
 
