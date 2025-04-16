@@ -88,9 +88,9 @@ def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indic
 
 def mutual_info_features(X_train, y_train, X_train_column_names, contin_flag = False):
     if contin_flag == False:
-        mutual_info = mutual_info_classif(X_train, y_train)
+        mutual_info = mutual_info_classif(X_train, y_train, random_state=42)
     else:
-        mutual_info = mutual_info_regression(X_train, y_train)
+        mutual_info = mutual_info_regression(X_train, y_train, random_state=42)
     
     sorted_indices = np.argsort(mutual_info)[::-1] 
     sorted_mi = [mutual_info[i] for i in sorted_indices]
