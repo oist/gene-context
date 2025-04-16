@@ -218,7 +218,7 @@ def read_aerob_data(
 
     # Add phylogenetic annotation (join based on accession)
     full_data = X_data.join(gtdb.select(['accession','domain', 'phylum','class','order','family','genus']), on="accession", how="left")
-    full_data = full_data.join(y_data, on="accession", how="inner") # Inner join because test accessions are in y1 but not in full_data
+    full_data = full_data.join(y_data, on="accession", how="inner")
     
     # Use data w/o noise: w/o FP FN
     print(f'\nData with noise: {len(full_data)}')
@@ -240,15 +240,13 @@ def read_aerob_data(
         .alias(target_column)
     )
     y = y.with_columns(
-        pl.col(target_column).cast(pl.Int32)  # Change to Int32
+        pl.col(target_column).cast(pl.Int32)
     )    
     print("\nCounts of y:", y.group_by(target_column).agg(pl.len()))
     y = y.to_pandas().iloc[:, -1]
 
     # Make X dataframe
     X = full_data.select(pl.exclude(['accession',target_column,'domain','phylum','class','order','family','genus','false_negative_rate','false_positive_rate'])).to_pandas()
-    # Blacklist these as they aren't in the current ancestral file, not sure why
-    X = X.drop(['COG0411', 'COG0459', 'COG0564', 'COG1344', 'COG4177'], axis=1)
 
     return X, y, full_data
 
