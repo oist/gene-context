@@ -218,3 +218,4 @@ def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_
 
     plt.xlabel("number of features added/removed")
     plt.ylabel(metric)
+    plt.ylim(0.0, 1.1)
