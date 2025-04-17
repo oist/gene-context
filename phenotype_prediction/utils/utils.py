@@ -192,7 +192,7 @@ def read_aerob_data(
     print(f'Data without noise: {len(full_data)}')
 
     # Map y labels
-    y = y_data
+    y = full_data[target_column]
     
     classes_map = {
         'anaerobe': 0,
