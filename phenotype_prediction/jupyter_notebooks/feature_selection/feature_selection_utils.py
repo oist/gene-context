@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import requests
+
 import shap
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.pipeline import make_pipeline
@@ -208,7 +210,6 @@ def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_
     plt.axhline(y=test_accuracy_scores[metric], color='darkred', linestyle='--', linewidth=1.5, label='baseline test')
     plt.axhline(y=cv_accuracy_scores[metric], color='darkblue', linestyle='--', linewidth=1.5, label='baseline CV')
     #TODO: rename x axis
-    #DONE: add n_cols & reversed x axis for removing
 
     plt.plot(num_feat, [scores[metric] for scores in test_accur_arr], c = "tab:red", label = "test | add")
     plt.plot(num_feat, [scores[metric] for scores in cv_accur_arr], c = "tab:blue", label = "cv | add")
@@ -219,3 +220,27 @@ def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_
     plt.xlabel("number of features added/removed")
     plt.ylabel(metric)
     plt.ylim(0.0, 1.1)
+
+def make_cog_descr(df):
+    """
+    Get descriptions for COGs from NCBI.
+    
+    :param pd.DataFrame cogs_df: pandas dataframe with top COGs from MI, RandomForest, and SHAP feature selection
+    :return: pandas.DataFrame
+    """
+    cogs_df = df.copy()
+
+    url = 'https://ftp.ncbi.nlm.nih.gov/pub/COG/COG2024/data/cog-24.def.tab'
+    response = requests.get(url)
+    
+    data_lines = response.content.decode('utf-8').splitlines()
+    cogs_descr = pd.DataFrame([line.split('\t') for line in data_lines if len(line.split('\t')) == 7],
+                              columns=['COG_ID', 'Category', 'Description', 'Gene', 'Function', 'Gene_IDs', 'PDB_ID'])
+
+    for column in ['MI', 'RandomForest', 'SHAP']:
+        df_descr = pd.merge(cogs_df, cogs_descr[['COG_ID', 'Description']], 
+                            how='left', left_on=[column], right_on=['COG_ID'], 
+                            suffixes=('', f'_{column}'))
+        cogs_df[column] = cogs_df[column] + ': ' + df_descr[f'Description'].fillna('')
+
+    return cogs_df[['MI', 'RandomForest', 'SHAP']]
