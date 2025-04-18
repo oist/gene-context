@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+import pandas as pd
 import requests
 
 import shap
@@ -88,11 +88,11 @@ def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indic
     return cv_accur_arr,  test_accur_arr, num_feat_plot 
 
 
-def mutual_info_features(X_train, y_train, X_train_column_names, contin_flag = False):
+def mutual_info_features(X_train, y_train, X_train_column_names, random_state, contin_flag = False):
     if contin_flag == False:
-        mutual_info = mutual_info_classif(X_train, y_train, random_state=42)
+        mutual_info = mutual_info_classif(X_train, y_train, random_state=random_state)
     else:
-        mutual_info = mutual_info_regression(X_train, y_train, random_state=42)
+        mutual_info = mutual_info_regression(X_train, y_train, random_state=random_state)
     
     sorted_indices = np.argsort(mutual_info)[::-1] 
     sorted_mi = [mutual_info[i] for i in sorted_indices]
@@ -100,13 +100,13 @@ def mutual_info_features(X_train, y_train, X_train_column_names, contin_flag = F
 
     return sorted_indices, sorted_mi, sorted_names
 
-def random_forest_features(X_train, y_train, X_train_column_names, contin_flag = False):
+def random_forest_features(X_train, y_train, X_train_column_names, random_state, contin_flag = False):
 
     if contin_flag == False:
         # Train a Random Forest model
-        rf = RandomForestClassifier(n_estimators=100, random_state=42)
+        rf = RandomForestClassifier(n_estimators=100, random_state=random_state)
     else:    
-        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf = RandomForestRegressor(n_estimators=100, random_state=random_state)
 
     rf.fit(X_train, y_train)
 

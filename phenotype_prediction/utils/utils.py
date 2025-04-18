@@ -33,97 +33,21 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def read_ogt_data(device, num_class, ogt_continuous_flag, precence_only_flag = False):
-    # Read the csv file with keggs
-    try:
-        filename = "data_ogt/kegg.csv"
-        df_keggs = pd.read_csv(filename,sep=",")
-    except FileNotFoundError as e: 
-        filename = "../data_ogt/kegg.csv"
-        df_keggs = pd.read_csv(filename,sep=",")
+def read_ogt_data(X_filename, y_filename, taxa_filename, device):
+    df_x_data = pd.read_csv(X_filename,sep="\t")
+    X_train_column_names = df_x_data.columns
+    X_val = df_x_data.drop(columns=['accession']).values
+    X_val = torch.tensor(X_val)
+    X_val = X_val.int().to(device)
 
-    # Replace empty or NaN cells with 0
-    df_keggs.fillna(0, inplace=True)
+    y_label = pd.read_csv(y_filename,sep="\t")
+    y_label = y_label.drop(columns=['accession'])
+    y_label = torch.tensor(y_label.values).to(device)
+    y_label = y_label.float()
 
-    # Read the csv file with the splits 
-    try:
-        filename_labels = "data_ogt/ogt_splits.csv"
-        df_labels = pd.read_csv(filename_labels, sep=",")
-        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
-    except FileNotFoundError as e: 
-        filename_labels = "../data_ogt/ogt_splits.csv"
-        df_labels = pd.read_csv(filename_labels, sep=",")
-        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
-    # Split the table based on "ogt_split" values
-    df_train = df_merged.loc[df_merged['ogt_split'] == 'train']
-    df_test = df_merged.loc[df_merged['ogt_split'] == 'test']
-    y_total_unique = []
-
-    # Y train
-    y_train = pd.DataFrame(df_train)
-    y_train = y_train[['ogt']]
-    y_total_unique +=  list(np.unique(y_train.values))
-    y_train = torch.tensor(y_train.values).to(device)
-    y_train = y_train.squeeze(1)
-    y_train = y_train.float()
-
-    # X train
-    X_train = df_train.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
-    X_train_column_names = X_train.columns
-    matrix = X_train.values
-    X_data = torch.tensor(matrix)
-    X_train = X_data.float().to(device)
-    X_train_numpy = X_train.cpu().numpy()
-    if precence_only_flag == True:
-        X_train_numpy = (X_train_numpy > 0).astype(int)
-    scaler = MaxAbsScaler()
-    X_train_scaled = X_train_numpy#scaler.fit_transform(X_train_numpy)
-    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
-
-    # Y test
-    y_test = pd.DataFrame(df_test)
-    y_test  = y_test[['ogt']]
-    y_total_unique += list(np.unique(y_test.values))
-    y_test  = torch.tensor(y_test.values).to(device)
-    y_test  = y_test .squeeze(1)
-    y_test  = y_test.float()
-    
-    # X test
-    X_test = df_test.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
-    X_test_column_names = X_test.columns
-    matrix = X_test.values
-    X_data = torch.tensor(matrix)
-    X_test = X_data.float().to(device)
-    X_test_numpy = X_test.cpu().numpy()
-    if precence_only_flag == True:
-        X_test_numpy = (X_test_numpy > 0).astype(int)
-    #scaler = MaxAbsScaler()
-    X_test_scaled = X_test_numpy#scaler.fit_transform(X_test_numpy)
-    X_test = torch.tensor(X_test_scaled, dtype=torch.float32).to(device)
-
-    # Convert to 0-N categories
-    y_total_unique = list(np.unique(y_total_unique))
-
-    # Create the linspace and distribute the point sto categories
-    categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_class)
-
-    y_train_np = y_train.cpu().numpy() if y_train.is_cuda else y_train.numpy()
-    y_test_np = y_test.cpu().numpy() if y_test.is_cuda else y_test.numpy()
-    if ogt_continuous_flag == True:
-        y_train = y_train_np[:]
-        y_test = y_test_np[:]
-    else:
-        y_train = np.digitize(y_train_np, categories_linspace, right=True)
-        y_test = np.digitize(y_test_np, categories_linspace, right=True)
-    
-
-    # Convert labels to the right format
-    y_test  = torch.tensor(y_test).to(device)
-    y_test  = y_test.float()
-    y_train  = torch.tensor(y_train).to(device)
-    y_train  = y_train.float()
-
-    return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), categories_linspace
+    taxa_label = pd.read_csv(taxa_filename,sep="\t")
+    taxa_label = taxa_label.iloc[:, -1].tolist()
+    return X_val, y_label, X_train_column_names[1:], taxa_label
 
 def read_diderm_data(X_filename, y_filename, device):
     df_x_data = pd.read_csv(X_filename,sep="\t")
