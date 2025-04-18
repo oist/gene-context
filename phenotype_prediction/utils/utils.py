@@ -33,11 +33,11 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def read_ogt_data11(device, num_class, ogt_continuous_flag, precence_only_flag = False):
+def read_ogt_data(device, num_class, ogt_continuous_flag, precence_only_flag = False):
     # Read the csv file with keggs
     try:
         filename = "data_ogt/kegg.csv"
-        df_keggs = pd.readc_sv(filename,sep=",")
+        df_keggs = pd.read_csv(filename,sep=",")
     except FileNotFoundError as e: 
         filename = "../data_ogt/kegg.csv"
         df_keggs = pd.read_csv(filename,sep=",")
@@ -125,58 +125,93 @@ def read_ogt_data11(device, num_class, ogt_continuous_flag, precence_only_flag =
 
     return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), categories_linspace
 
-def read_diderm_data(X_filename, y_filename, taxa_filename, device):
-   
-      df_x_data = pd.read_csv(X_filename,sep="\t")
-      X_train_column_names = df_x_data.columns
-      X_val = df_x_data.drop(columns=['accession']).values
-      X_val = torch.tensor(X_val)
-      X_val = X_val.float().to(device)
+def read_diderm_data(X_filename, y_filename, device):
+    df_x_data = pd.read_csv(X_filename,sep="\t")
 
-      y_label = pd.read_csv(y_filename,sep="\t")
-      y_label = y_label.drop(columns=['accession'])
-      y_label = y_label.iloc[:, 0].map({'Diderm': 0, 'Monoderm': 1})
-      y_label = torch.tensor(y_label.values).to(device)
-      y_label = y_label.float()
+    X_train_column_names = df_x_data.columns
 
-      taxa_label = pd.read_csv(taxa_filename,sep="\t")
-      taxa_label = taxa_label.iloc[:, -1].tolist()
-      return X_val, y_label, X_train_column_names[1:], taxa_label
+    df_y_labels = pd.read_csv(y_filename,sep="\t")
 
-def read_host_data(X_filename, y_filename, taxa_filename, device):
-   
-      df_x_data = pd.read_csv(X_filename,sep="\t")
-      X_train_column_names = df_x_data.columns
-      X_val = df_x_data.drop(columns=['accession']).values
-      X_val = torch.tensor(X_val)
-      X_val = X_val.float().to(device)
+    df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
 
-      y_label = pd.read_csv(y_filename,sep="\t")
-      y_label = y_label.drop(columns=['accession'])
-      y_label = y_label.iloc[:, 0].map({'ecological': 0, 'host': 1})
-      y_label = torch.tensor(y_label.values).to(device)
-      y_label = y_label.float()
+    X_val = df_merged.drop(columns=['high_throughput_dermy', 'accession']).values
+    X_val = torch.tensor(X_val)
+    X_val = X_val.float().to(device)
+    X_val_numpy = X_val.cpu().numpy()
+ #   scaler = MaxAbsScaler()
+   # X_val_scaled = scaler.fit_transform(X_val_numpy)
+    X_val = torch.tensor(X_val_numpy, dtype=torch.float32).to(device)
 
-      taxa_label = pd.read_csv(taxa_filename,sep="\t")
-      taxa_label = taxa_label.iloc[:, -1].tolist()
-      return X_val, y_label, X_train_column_names[1:], taxa_label
+    y_label = df_merged["high_throughput_dermy"].map({'Diderm': 0, 'Monoderm': 1})
+    y_label = torch.tensor(y_label.values).to(device)
+   # y_label = y_label.squeeze(1)
+    y_label = y_label.float()
 
-def read_ogt_data(X_filename, y_filename, taxa_filename, device):
-   
-      df_x_data = pd.read_csv(X_filename,sep="\t")
-      X_train_column_names = df_x_data.columns
-      X_val = df_x_data.drop(columns=['accession']).values
-      X_val = torch.tensor(X_val)
-      X_val = X_val.int().to(device)
+    return X_val, y_label, X_train_column_names[1:]
 
-      y_label = pd.read_csv(y_filename,sep="\t")
-      y_label = y_label.drop(columns=['accession'])
-      y_label = torch.tensor(y_label.values).to(device)
-      y_label = y_label.float()
+def read_aerob_data(
+    X_data_path='../data_aerob/all_gene_annotations.tsv', 
+    y_data_path = '../data_aerob/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv',
+    bac_phylogeny_data_path='../data_preparation/gtdb_files/bac120_metadata_r202.tsv', 
+    arch_phylogeny_data_path='../data_preparation/gtdb_files/ar122_metadata_r202.tsv',
+    target_column = 'oxytolerance'):
+    """
+    Read aerobicity data:
+    :param str X_data_path: Path to the feature table
+    :param str y: Path to the labels table
+    :param str bac_phylogeny_data_path: Path to the phylogenetic annotation table for bacteria
+    :param arch_phylogeny_data_path: Path to the phylogenetic annotation table for archaeae
+    :param target_column: Column name of the target
+    :return: pandas.DataFrame
+    """
+    
+    # Read GTDB phylogenetic annotation table
+    gtdb = pl.concat([
+        pl.read_csv(bac_phylogeny_data_path, separator='\t'),
+        pl.read_csv(arch_phylogeny_data_path, separator='\t')
+    ])
+    gtdb = gtdb.filter(pl.col("gtdb_representative") == "t")
+    print("Read in {} GTDB representatives".format(len(gtdb)))
+    
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(0).alias("domain"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(1).alias("phylum"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(2).alias("class"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(3).alias("order"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(4).alias("family"))
+    gtdb = gtdb.with_columns(pl.col("gtdb_taxonomy").str.split(';').list.get(5).alias("genus"))
+    
+    # Read feature table
+    X_data = pl.read_csv(X_data_path, separator='\t')
+    
+    # Read y
+    y_data = pl.read_csv(y_data_path, separator='\t')
+    
+    # Add phylogenetic annotation (join based on accession)
+    full_data = X_data.join(gtdb.select(['accession','domain', 'phylum','class','order','family','genus']), on="accession", how="left")
+    full_data = full_data.join(y_data, on="accession", how="inner") # Inner join because test accessions are in y1 but not in full_data
+    print(f'Data without noise: {len(full_data)}')
 
-      taxa_label = pd.read_csv(taxa_filename,sep="\t")
-      taxa_label = taxa_label.iloc[:, -1].tolist()
-      return X_val, y_label, X_train_column_names[1:], taxa_label
+    # Map y labels
+    classes_map = {
+        'anaerobe': 0,
+        'aerobe': 1,
+    }      
+    
+    y = full_data.with_columns(
+        pl.col(target_column)
+        .replace_strict(classes_map, default='unknown')
+        .alias(target_column)
+    )
+    y = y.with_columns(
+        pl.col(target_column).cast(pl.Int32)
+    )    
+    print("\nCounts of y:", y.group_by(target_column).agg(pl.len()))
+    y = y.to_pandas().iloc[:, -1]
+
+    # Make X dataframe
+    X = full_data.select(pl.exclude(['accession',target_column,'domain','phylum','class','order','family','genus','false_negative_rate','false_positive_rate'])).to_pandas()
+
+    return X, y, full_data
 
 def process_aerob_dataset(X_filename, y_filename, device, remove_noise):
     d3_train, X_train, y_train = read_xy_data(X_filename, y_filename, remove_noise)
@@ -311,99 +346,103 @@ def generate_colors_from_colormap(colormap_name, N):
    
    return listed_cmap, colors
 
-def pca_run_and_plot(X_train_val, n_compon, y_train_val=None, category_names=None, colors=None, legend_flag=False):
-    # Scale the data using MaxAbsScaler
-    scaler = MaxAbsScaler()
-    X_scaled = scaler.fit_transform(X_train_val)
+def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None):
+   scaler = MaxAbsScaler()
 
-    # Apply PCA
-    pca = PCA(n_components=n_compon)
-    X_pca = pca.fit_transform(X_scaled)
-    print(f"Data after PCA reduction: {X_pca.shape}")
+   # Fit and transform the data
+   X_train_val = scaler.fit_transform(X_train_val)
 
-    # Explained variance ratio
-    explained_variance_ratio = pca.explained_variance_ratio_
-    listed_cmap = None
+   # Run PCA on the X-data
+   pca = PCA(n_components=n_compon)
+   X_train_pca = pca.fit_transform(X_train_val)
+   print(f"Data after PCA reduction: {X_train_pca.shape}")
 
-    if y_train_val is not None:
-        # Ensure y_train_val contains numeric values for the color argument
-        unique_ids = np.unique(y_train_val)
+   # Find the explained variance
+   explained_variance_ratio = pca.explained_variance_ratio_
 
-        if isinstance(colors, ListedColormap):
-            listed_cmap = colors
-        else:
-            listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
+   print("Explained variance ratio:", explained_variance_ratio)
+   print("Total explained variance:", sum(explained_variance_ratio))
 
-        # If y_train_val contains categorical labels, map them to numbers
-        if isinstance(y_train_val[0], str):
-            label_map = {label: idx for idx, label in enumerate(unique_ids)}
-            y_train_val_numeric = np.array([label_map[label] for label in y_train_val])
-        else:
-            y_train_val_numeric = y_train_val
+   listed_cmap = None
 
-        plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y_train_val_numeric, alpha=0.6, s=10, cmap=listed_cmap)
+  # plt.figure(figsize=(4, 4))
+   if y_train_val is not None:
+       #Ensure 'y_train_val' has unique, valid labels
+       unique_ids = np.unique(y_train_val)
 
-        # If category_names are provided, display the corresponding legend
-        if category_names is not None:
-            categ_name_dict = defaultdict(str)
-            for i, label in enumerate(y_train_val):
-                categ_name_dict[i] = category_names[i]
+       # Check if 'colors' is already a ListedColormap or needs to be generated
+       if isinstance(colors, ListedColormap):
+           listed_cmap = colors  # Use the passed ListedColormap directly
+       else:
+           # Generate colors based on the unique labels in y_train_val
+           
+           listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
+       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=0.6, s = 10, label = category_names, cmap=listed_cmap)
 
-            labels = [categ_name_dict[uid] for uid in unique_ids]
-            handles = [Line2D([0], [0], marker='o', color='w',
-                              markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10)
-                       for i in range(len(unique_ids))]
-            if legend_flag:
-                plt.legend(handles=handles, labels=labels, loc='upper center',
-                            title="Categories", ncol=5)
-        else:
-            plt.colorbar()
-    else:
-        plt.scatter(X_pca[:, 0], X_pca[:, 1], alpha=0.6, s=10)
+       if category_names is not None:
+           categ_name_dict = defaultdict(int)
+           for i in range(len(y_train_val)):
+               categ_id = y_train_val[i]
+               #if categ_id not in categ_name_dict.keys():
+               categ_id = int(categ_id)
+               categ_name_dict[categ_id] = category_names[i]
+           labels = [categ_name_dict[unique_id] for unique_id in unique_ids]       
 
-    plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0], 2)}")
-    plt.ylabel(f"PC 2; var = {round(explained_variance_ratio[1], 2)}")
-    plt.title("PCA space")
-    plt.grid(True, zorder=1)
+           # Create legend handles and labels based on unique labels
+           handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
+       
 
-    return listed_cmap
+           plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5) #, bbox_to_anchor=(1.05, 1)
+       else:
+           plt.colorbar()    
+   else:
+       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], alpha=0.6, s = 10)
+          
+   plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0],2)}")
+   plt.ylabel(f"PC 2; var = {round(explained_variance_ratio[1],2)}")
+   plt.title("PCA space")
+   plt.grid(True, zorder=1)
+   #plt.show()
+
+   return listed_cmap    
+
 
 false_posit_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 false_negat_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 
-from sklearn.preprocessing import LabelEncoder
-
-def tsne_plot(X_train, perplexity, learning_rate, random_seed, colors, colormap=None):
+def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, colors = None):
     scaler = MaxAbsScaler()
+
+    # Fit and transform the data
     X_train_scal = scaler.fit_transform(X_train)
 
-    tsne = TSNE(n_components=2, perplexity=perplexity, learning_rate=learning_rate, 
-                max_iter=3000, init='pca', random_state=random_seed)
 
-    X_tsne = tsne.fit_transform(X_train_scal)
+    # Initialize and apply t-SNE
+    tsne = TSNE(n_components=2, perplexity=perplexity, learning_rate=learning_rate, max_iter=3000, init='pca', random_state=random_seed) 
+
+    if colors is None:
+        listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(np.unique(y_train)))))
+        #colors = ListedColormap(["tab:green", "tab:purple"])
+    else:
+        listed_cmap = colors    
+
+
+    X_tsne = tsne.fit_transform(X_train_scal) 
+
     print(f"Shape of the projected data = {X_tsne.shape}")
 
-    # Encode string labels (e.g., phylum names) to integers
-    if colors is not None:
-        le = LabelEncoder()
-        numeric_colors = le.fit_transform(colors)  # Convert strings to ints
-
-        if colormap is None:
-            listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(le.classes_))))
-        else:
-            listed_cmap = colormap
-
-        scatter = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=numeric_colors, alpha=0.5, s=10, cmap=listed_cmap)
-     #   if colormap is None:
-     #       plt.colorbar(scatter, ticks=range(len(le.classes_)), label='Taxa')
+    # Visualize the t-SNE output
+    if y_train is not None:
+        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=0.5, s = 10, cmap=listed_cmap)
+        if colors is None:
+            plt.colorbar()    
     else:
-        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s=10)
-
+        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s = 10)
     plt.xlabel("tSNE1")
     plt.ylabel("tSNE2")
-    plt.title("tSNE space")
-    plt.grid(True, zorder=1)
+    plt.title("tSNE space")    
+    plt.grid(True, zorder=1)      
 
 
 def generate_tables(grouped):
@@ -595,6 +634,7 @@ def xgboost_accuracy_contin(X_train, X_test, y_train, y_test, sorted_cog_idx, fe
         rmse_cv_arr.append(rmse_cv)
         r2_cv = r2_score(y_true_cv, y_pred_cv)
         r2_cv_arr.append(r2_cv)
+
     return rmse_test_arr, r2_test_arr, rmse_cv_arr, r2_cv_arr, num_feat_plot 
 
 
@@ -610,3 +650,4 @@ def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_
 
     plt.xlabel("number of features added/removed")
     plt.ylabel(metric)
+
