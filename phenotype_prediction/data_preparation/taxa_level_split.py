@@ -28,6 +28,8 @@ How to run this script?
 
 E.g.
     python3 -m data_preparation.taxa_level_split --tax_level phylum --input_annotation_csv data_diderm/gold_standard1.tsv --input_data_csv data_diderm/all_gene_annotations.tsv --output_dir data_diderm/input_data
+    python3 -m data_preparation.taxa_level_split --tax_level phylum --input_annotation_csv data_host/all_annotations.csv --input_data_csv data_host/all_genes.csv --output_dir data_host/input_data
+    python3 -m data_preparation.taxa_level_split --tax_level phylum --input_annotation_csv data_ogt/ogt_annot.csv --input_data_csv data_ogt/kegg.csv --output_dir data_ogt/input_data
 """
 
 BAC_TSV = 'data_preparation/gtdb_files/bac120_metadata_r202.tsv'
