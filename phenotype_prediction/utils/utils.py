@@ -634,4 +634,20 @@ def xgboost_accuracy_contin(X_train, X_test, y_train, y_test, sorted_cog_idx, fe
         rmse_cv_arr.append(rmse_cv)
         r2_cv = r2_score(y_true_cv, y_pred_cv)
         r2_cv_arr.append(r2_cv)
+
     return rmse_test_arr, r2_test_arr, rmse_cv_arr, r2_cv_arr, num_feat_plot 
+
+
+def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_accur_arr, test_accur_arr_rem, cv_accur_arr, cv_accur_arr_rem, num_feat, tot_num_feat):
+    plt.axhline(y=test_accuracy_scores[metric], color='darkred', linestyle='--', linewidth=1.5, label='baseline test')
+    plt.axhline(y=cv_accuracy_scores[metric], color='darkblue', linestyle='--', linewidth=1.5, label='baseline CV')
+
+    plt.plot(num_feat, [scores[metric] for scores in test_accur_arr], c = "tab:red", label = "test | add")
+    plt.plot(num_feat, [scores[metric] for scores in cv_accur_arr], c = "tab:blue", label = "cv | add")
+
+    plt.plot([tot_num_feat - n for n in num_feat] ,  [scores[metric] for scores in test_accur_arr_rem], c = "tab:red", label = "test | remove", alpha = 0.5)
+    plt.plot([tot_num_feat - n for n in num_feat], [scores[metric] for scores in cv_accur_arr_rem], c = "tab:blue", label = "cv | remove", alpha = 0.5)
+
+    plt.xlabel("number of features added/removed")
+    plt.ylabel(metric)
+
