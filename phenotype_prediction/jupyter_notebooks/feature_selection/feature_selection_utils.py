@@ -78,7 +78,6 @@ def xgboost_accur_select_features(X_train, X_test, y_train, y_test, sorted_indic
             select_feat = list(sorted_indices[N:])
         num_feat_plot.append(N)        
        
-       
         X_train_select_feat = X_train[:, select_feat] 
         X_test_select_feat = X_test[:, select_feat]
         cv_accuracy_scores, test_accuracy_scores = xgboost_train_accur(X_train_select_feat, y_train, X_test_select_feat, y_test, device)
@@ -244,3 +243,12 @@ def make_cog_descr(df):
         cogs_df[column] = cogs_df[column] + ': ' + df_descr[f'Description'].fillna('')
 
     return cogs_df[['MI', 'RandomForest', 'SHAP']]
+
+
+def random_feat_removal_curves(X_train, X_test, y_train, y_test, num_runs, feat_step, device, feat_removal):
+    tot_num_feat = X_train.cpu().shape[1]
+
+    for _ in range(num_runs):
+        shuffled_indices = np.random.permutation(tot_num_feat)
+
+        cv_accur_arr, test_accur_arr, num_feat = xgboost_accur_select_features(X_train, X_test, y_train, y_test, shuffled_indices, feat_step, device, feat_removal)
