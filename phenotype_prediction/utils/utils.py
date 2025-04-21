@@ -49,7 +49,7 @@ def read_ogt_data(X_filename, y_filename, taxa_filename, device):
     taxa_label = taxa_label.iloc[:, -1].tolist()
     return X_val, y_label, X_train_column_names[1:], taxa_label
 
-def read_diderm_data(X_filename, y_filename, device):
+def read_diderm_data(X_filename, y_filename, taxa_filename, device):
     df_x_data = pd.read_csv(X_filename,sep="\t")
 
     X_train_column_names = df_x_data.columns
@@ -58,7 +58,7 @@ def read_diderm_data(X_filename, y_filename, device):
 
     df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
 
-    X_val = df_merged.drop(columns=['high_throughput_dermy', 'accession']).values
+    X_val = df_merged.drop(columns=['annotation', 'accession']).values
     X_val = torch.tensor(X_val)
     X_val = X_val.float().to(device)
     X_val_numpy = X_val.cpu().numpy()
@@ -66,12 +66,13 @@ def read_diderm_data(X_filename, y_filename, device):
    # X_val_scaled = scaler.fit_transform(X_val_numpy)
     X_val = torch.tensor(X_val_numpy, dtype=torch.float32).to(device)
 
-    y_label = df_merged["high_throughput_dermy"].map({'Diderm': 0, 'Monoderm': 1})
+    y_label = df_merged["annotation"].map({'Diderm': 0, 'Monoderm': 1})
     y_label = torch.tensor(y_label.values).to(device)
    # y_label = y_label.squeeze(1)
     y_label = y_label.float()
-
-    return X_val, y_label, X_train_column_names[1:]
+    taxa_label = pd.read_csv(taxa_filename,sep="\t")
+    taxa_label = taxa_label.iloc[:, -1].tolist()
+    return X_val, y_label, X_train_column_names[1:], taxa_label
 
 def read_aerob_data(
     X_data_path='../data_aerob/all_gene_annotations.tsv', 
@@ -574,4 +575,33 @@ def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_
 
     plt.xlabel("number of features added/removed")
     plt.ylabel(metric)
+
+
+def random_feat_removal_curves_ogt(X_train, X_test, y_train, y_test, num_runs, feat_step, feat_removal):
+    tot_num_feat = X_train.cpu().shape[1]
+    rmse_test_arr_mi_tot = []
+    r2_test_arr_mi_tot = []
+    rmse_cv_arr_mi_tot = []
+    r2_cv_arr_mi_tot = []
+    
+    for _ in range(num_runs):
+        shuffled_indices = np.random.permutation(tot_num_feat)
+        rmse_test_arr_mi, r2_test_arr_mi, rmse_cv_arr_mi, r2_cv_arr_mi, num_feat_plot = xgboost_accuracy_contin(X_train.cpu(), X_test.cpu(), y_train, y_test, shuffled_indices, feat_step, feat_removal)
+        rmse_test_arr_mi_tot.append(rmse_test_arr_mi)
+        r2_test_arr_mi_tot.append(r2_test_arr_mi)
+        rmse_cv_arr_mi_tot.append(rmse_cv_arr_mi)
+        r2_cv_arr_mi_tot.append(r2_cv_arr_mi)
+        
+    rmse_test_arr_mi_mean = np.array(rmse_test_arr_mi_tot).mean(axis=0)  
+    rmse_test_arr_mi_std = np.array(rmse_test_arr_mi_tot).std(axis=0)  
+    
+    r2_test_arr_mi_mean = np.array(r2_test_arr_mi_tot).mean(axis=0)  
+    r2_test_arr_mi_std = np.array(r2_test_arr_mi_tot).std(axis=0)  
+    
+    rmse_cv_arr_mi_mean = np.array(rmse_cv_arr_mi_tot).mean(axis=0)  
+    rmse_cv_arr_mi_std = np.array(rmse_cv_arr_mi_tot).std(axis=0)  
+    
+    r2_cv_arr_mi_mean = np.array(r2_cv_arr_mi_tot).mean(axis=0)  
+    r2_cv_arr_mi_std = np.array(r2_cv_arr_mi_tot).std(axis=0)  
+    return rmse_test_arr_mi_mean, rmse_test_arr_mi_std, r2_test_arr_mi_mean, r2_test_arr_mi_std, rmse_cv_arr_mi_mean, rmse_cv_arr_mi_std, r2_cv_arr_mi_mean, r2_cv_arr_mi_std    
 

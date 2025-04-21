@@ -115,9 +115,9 @@ if __name__ == '__main__':
         # Randomly order the groups
         random.seed(RANDOM_SEED)
         random.shuffle(all_groups)
-
+        
         # Split them into test and train
-        while testing_set_size < len(joined_df) * TEST_DATA_SIZE:
+        while testing_set_size < len(joined_df) * TEST_DATA_SIZE and len(all_groups) > 1:
             group = all_groups.pop()
             testing_families.add(group)
             testing_set_size += len(joined_df.filter(pl.col(tax_level) == group))  
