@@ -205,10 +205,9 @@ def svc_features(X_train, y_train, X_train_column_names):
     return sorted_indices, sorted_importances, sorted_names
 
 
-def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_accur_arr, test_accur_arr_rem, cv_accur_arr, cv_accur_arr_rem, num_feat, n_cols):
+def plot_accuracy_metric11(metric, test_accuracy_scores, cv_accuracy_scores, test_accur_arr, test_accur_arr_rem, cv_accur_arr, cv_accur_arr_rem, num_feat, n_cols):
     plt.axhline(y=test_accuracy_scores[metric], color='darkred', linestyle='--', linewidth=1.5, label='baseline test')
     plt.axhline(y=cv_accuracy_scores[metric], color='darkblue', linestyle='--', linewidth=1.5, label='baseline CV')
-    #TODO: rename x axis
 
     plt.plot(num_feat, [scores[metric] for scores in test_accur_arr], c = "tab:red", label = "test | add")
     plt.plot(num_feat, [scores[metric] for scores in cv_accur_arr], c = "tab:blue", label = "cv | add")
@@ -244,11 +243,63 @@ def make_cog_descr(df):
 
     return cogs_df[['MI', 'RandomForest', 'SHAP']]
 
-
+import copy
 def random_feat_removal_curves(X_train, X_test, y_train, y_test, num_runs, feat_step, device, feat_removal):
     tot_num_feat = X_train.cpu().shape[1]
+    num_feat = range(1,tot_num_feat,feat_step)
+    accuracy_one_point_arr = {
+        'accuracy':  [],
+        'precision': [],
+        'recall': [],
+        'f1': [],
+        'roc_auc': [],
+    }
+    cv_accur_arr_all_runs = [copy.deepcopy(accuracy_one_point_arr) for _ in num_feat]
+    test_accur_arr_all_runs = [copy.deepcopy(accuracy_one_point_arr) for _ in num_feat]
 
-    for _ in range(num_runs):
+    for i in range(num_runs):
         shuffled_indices = np.random.permutation(tot_num_feat)
-
         cv_accur_arr, test_accur_arr, num_feat = xgboost_accur_select_features(X_train, X_test, y_train, y_test, shuffled_indices, feat_step, device, feat_removal)
+        for j in range(len(num_feat)):
+            for metric in cv_accur_arr[j].keys():
+                cv_accur_arr_all_runs[j][metric].append(cv_accur_arr[j][metric])
+                test_accur_arr_all_runs[j][metric].append(test_accur_arr[j][metric])
+                
+    accuracy_one_point_val = {
+        'accuracy':  0,
+        'precision': 0,
+        'recall': 0,
+        'f1': 0,
+        'roc_auc': 0,
+    }
+    cv_accur_arr_all_runs_mn = [copy.deepcopy(accuracy_one_point_val) for _ in num_feat]
+    cv_accur_arr_all_runs_std = [copy.deepcopy(accuracy_one_point_val) for _ in num_feat]
+    test_accur_arr_all_runs_mn = [copy.deepcopy(accuracy_one_point_val) for _ in num_feat]
+    test_accur_arr_all_runs_std = [copy.deepcopy(accuracy_one_point_val) for _ in num_feat]
+
+    for j in range(len(num_feat)):
+        for metric in cv_accur_arr_all_runs_mn[j].keys():
+            cv_accur_arr_all_runs_mn[j][metric] = np.mean(cv_accur_arr_all_runs[j][metric])
+
+        for metric in cv_accur_arr_all_runs_std[j].keys():
+            cv_accur_arr_all_runs_std[j][metric] = np.std(cv_accur_arr_all_runs[j][metric])
+
+        for metric in test_accur_arr_all_runs_mn[j].keys():
+            test_accur_arr_all_runs_mn[j][metric] = np.mean(test_accur_arr_all_runs[j][metric])
+
+        for metric in test_accur_arr_all_runs_std[j].keys():
+            test_accur_arr_all_runs_std[j][metric] = np.std(test_accur_arr_all_runs[j][metric])
+    return cv_accur_arr_all_runs_mn, cv_accur_arr_all_runs_std, test_accur_arr_all_runs_mn, test_accur_arr_all_runs_std, num_feat
+
+def plot_accuracy_metric(baseline_test, baseline_cv, vary_test, vary_cv, rand_mean_test, rand_std_test, rand_mean_cv, rand_std_cv, num_feat_plot):
+    rand_mean_test, rand_std_test = np.array(rand_mean_test), np.array(rand_std_test)
+    rand_mean_cv, rand_std_cv = np.array(rand_mean_cv), np.array(rand_std_cv)
+    plt.axhline(y=baseline_test, color='darkred', linestyle='--', linewidth=1, label='test baseline')
+    plt.axhline(y=baseline_cv, color='darkblue', linestyle='--', linewidth=1, label='cv baseline')
+    plt.plot(num_feat_plot, vary_test, c = "tab:red", alpha = 1, label = "test varying features", linewidth=1)
+    plt.plot(num_feat_plot, vary_cv, c = "tab:blue", alpha = 1, label = "cv varying features", linewidth=1)
+    plt.plot(num_feat_plot, rand_mean_test, label="test random, mean ± std", color='tab:orange', linewidth=1)
+    plt.fill_between(num_feat_plot, rand_mean_test - rand_std_test, rand_mean_test + rand_std_test, alpha=0.3, color='tab:orange')
+    plt.plot(num_feat_plot, rand_mean_cv, label="cv random, mean ± std", color='tab:green', linewidth=1)
+    plt.fill_between(num_feat_plot, rand_mean_cv - rand_std_cv, rand_mean_cv + rand_std_cv, alpha=0.3, color='tab:green')
+    plt.grid()
