@@ -51,27 +51,30 @@ def read_ogt_data(X_filename, y_filename, taxa_filename, device):
 
 def read_diderm_data(X_filename, y_filename, taxa_filename, device):
     df_x_data = pd.read_csv(X_filename,sep="\t")
-
+    df_x_data = df_x_data.drop_duplicates(subset='accession', keep='first')
     X_train_column_names = df_x_data.columns
 
     df_y_labels = pd.read_csv(y_filename,sep="\t")
-
+    df_y_labels = df_y_labels.drop_duplicates(subset='accession', keep='first')
     df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
+
+    taxa_label = pd.read_csv(taxa_filename,sep="\t")
+    taxa_label = taxa_label.drop_duplicates(subset='accession', keep='first')
+
+    df_merged = pd.merge(df_merged, taxa_label, on='accession', how='inner') 
+
+    taxa_label =  df_merged.iloc[:, -1].tolist()
+    df_merged = df_merged.drop(columns=df_merged.columns[-1])
 
     X_val = df_merged.drop(columns=['annotation', 'accession']).values
     X_val = torch.tensor(X_val)
     X_val = X_val.float().to(device)
     X_val_numpy = X_val.cpu().numpy()
- #   scaler = MaxAbsScaler()
-   # X_val_scaled = scaler.fit_transform(X_val_numpy)
     X_val = torch.tensor(X_val_numpy, dtype=torch.float32).to(device)
 
     y_label = df_merged["annotation"].map({'Diderm': 0, 'Monoderm': 1})
     y_label = torch.tensor(y_label.values).to(device)
-   # y_label = y_label.squeeze(1)
     y_label = y_label.float()
-    taxa_label = pd.read_csv(taxa_filename,sep="\t")
-    taxa_label = taxa_label.iloc[:, -1].tolist()
     return X_val, y_label, X_train_column_names[1:], taxa_label
 
 def read_aerob_data(
@@ -271,7 +274,7 @@ def generate_colors_from_colormap(colormap_name, N):
    
    return listed_cmap, colors
 
-def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None):
+def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None, legend = False):
    scaler = MaxAbsScaler()
 
    # Fit and transform the data
@@ -280,13 +283,9 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names =
    # Run PCA on the X-data
    pca = PCA(n_components=n_compon)
    X_train_pca = pca.fit_transform(X_train_val)
-   print(f"Data after PCA reduction: {X_train_pca.shape}")
 
    # Find the explained variance
    explained_variance_ratio = pca.explained_variance_ratio_
-
-   print("Explained variance ratio:", explained_variance_ratio)
-   print("Total explained variance:", sum(explained_variance_ratio))
 
    listed_cmap = None
 
@@ -316,8 +315,8 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names =
            # Create legend handles and labels based on unique labels
            handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
        
-
-           plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5) #, bbox_to_anchor=(1.05, 1)
+           if legend:
+               plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5, bbox_to_anchor=(1.05, 1)) #, bbox_to_anchor=(1.05, 1)
        else:
            plt.colorbar()    
    else:
