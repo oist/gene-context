@@ -52,6 +52,7 @@ def process_args():
 def save_selected_data_and_annot(df, groups, tax_level, filename_data, filename_annot, filename_taxa):
     # Prep the df
     df_filter = df.filter(pl.col(tax_level).is_in(groups))
+    df_filter = df_filter.unique(subset=["accession"], keep="first")
     print("The set has {} rows".format(len(df_filter)))
 
     # Select accession and accession and save as a csv
@@ -125,12 +126,12 @@ if __name__ == '__main__':
         print(f"Found {len(testing_families)} testing groups at {tax_level} taxonomy level, comprising {testing_set_size} data points")
 
         # Create output directory if it doesn't exist
-        if not os.path.exists(args.output_dir):
-            os.makedirs(args.output_dir)
+        if not os.path.exists(f"{args.output_dir}/{tax_level}"):
+            os.makedirs(f"{args.output_dir}/{tax_level}")
 
         # Save the train/test group lists to txt files
-        train_filename = f"{args.output_dir}/train_groups_{tax_level}_tax_level"
-        test_filename = f"{args.output_dir}/test_groups_{tax_level}_tax_level"
+        train_filename = f"{args.output_dir}/{tax_level}/train_groups_{tax_level}_tax_level"
+        test_filename = f"{args.output_dir}/{tax_level}/test_groups_{tax_level}_tax_level"
 
         with open(train_filename, "w") as f:
             f.write("\n".join(x for x in all_groups if x is not None))
@@ -138,14 +139,14 @@ if __name__ == '__main__':
             f.write("\n".join(x for x in testing_families if x is not None))    
 
         # Save the train/test data files to txt files
-        train_data_filename = f"{args.output_dir}/train_data_{tax_level}_tax_level"
-        train_annot_filename = f"{args.output_dir}/train_annot_{tax_level}_tax_level"
-        train_taxa_filename = f"{args.output_dir}/train_taxa_names_{tax_level}_tax_level"
+        train_data_filename = f"{args.output_dir}/{tax_level}/train_data_{tax_level}_tax_level"
+        train_annot_filename = f"{args.output_dir}/{tax_level}/train_annot_{tax_level}_tax_level"
+        train_taxa_filename = f"{args.output_dir}/{tax_level}/train_taxa_names_{tax_level}_tax_level"
         save_selected_data_and_annot(joined_df, all_groups, tax_level, train_data_filename, train_annot_filename, train_taxa_filename)
 
-        test_data_filename = f"{args.output_dir}/test_data_{tax_level}_tax_level"
-        test_annot_filename = f"{args.output_dir}/test_annot_{tax_level}_tax_level"
-        test_taxa_filename = f"{args.output_dir}/test_taxa_names_{tax_level}_tax_level"
+        test_data_filename = f"{args.output_dir}/{tax_level}/test_data_{tax_level}_tax_level"
+        test_annot_filename = f"{args.output_dir}/{tax_level}/test_annot_{tax_level}_tax_level"
+        test_taxa_filename = f"{args.output_dir}/{tax_level}/test_taxa_names_{tax_level}_tax_level"
         save_selected_data_and_annot(joined_df, testing_families, tax_level, test_data_filename, test_annot_filename, test_taxa_filename)
 
         print("Finished!")

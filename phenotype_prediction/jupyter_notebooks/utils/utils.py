@@ -33,99 +33,51 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def read_ogt_data(device, num_class, ogt_continuous_flag, precence_only_flag = False):
-    # Read the csv file with keggs
-    try:
-        filename = "data_ogt/kegg.csv"
-        df_keggs = pd.read_csv(filename,sep=",")
-    except FileNotFoundError as e: 
-        filename = "../data_ogt/kegg.csv"
-        df_keggs = pd.read_csv(filename,sep=",")
+def read_ogt_data(X_filename, y_filename, taxa_filename, device):
+    df_x_data = pd.read_csv(X_filename,sep="\t")
+    X_train_column_names = df_x_data.columns
+    X_val = df_x_data.drop(columns=['accession']).values
+    X_val = torch.tensor(X_val)
+    X_val = X_val.int().to(device)
 
-    # Replace empty or NaN cells with 0
-    df_keggs.fillna(0, inplace=True)
+    y_label = pd.read_csv(y_filename,sep="\t")
+    y_label = y_label.drop(columns=['accession'])
+    y_label = torch.tensor(y_label.values).to(device)
+    y_label = y_label.float()
 
-    # Read the csv file with the splits 
-    try:
-        filename_labels = "data_ogt/ogt_splits.csv"
-        df_labels = pd.read_csv(filename_labels, sep=",")
-        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
-    except FileNotFoundError as e: 
-        filename_labels = "../data_ogt/ogt_splits.csv"
-        df_labels = pd.read_csv(filename_labels, sep=",")
-        df_merged = pd.merge(df_keggs, df_labels, on='acc', how='inner') 
-    # Split the table based on "ogt_split" values
-    df_train = df_merged.loc[df_merged['ogt_split'] == 'train']
-    df_test = df_merged.loc[df_merged['ogt_split'] == 'test']
-    y_total_unique = []
+    taxa_label = pd.read_csv(taxa_filename,sep="\t")
+    taxa_label = taxa_label.iloc[:, -1].tolist()
+    return X_val, y_label, X_train_column_names[1:], taxa_label
 
-    # Y train
-    y_train = pd.DataFrame(df_train)
-    y_train = y_train[['ogt']]
-    y_total_unique +=  list(np.unique(y_train.values))
-    y_train = torch.tensor(y_train.values).to(device)
-    y_train = y_train.squeeze(1)
-    y_train = y_train.float()
+def read_diderm_data(X_filename, y_filename, taxa_filename, device):
+    df_x_data = pd.read_csv(X_filename,sep="\t")
+    df_x_data = df_x_data.drop_duplicates(subset='accession', keep='first')
+    X_train_column_names = df_x_data.columns
 
-    # X train
-    X_train = df_train.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
-    X_train_column_names = X_train.columns
-    matrix = X_train.values
-    X_data = torch.tensor(matrix)
-    X_train = X_data.float().to(device)
-    X_train_numpy = X_train.cpu().numpy()
-    if precence_only_flag == True:
-        X_train_numpy = (X_train_numpy > 0).astype(int)
-    scaler = MaxAbsScaler()
-    X_train_scaled = X_train_numpy#scaler.fit_transform(X_train_numpy)
-    X_train = torch.tensor(X_train_scaled, dtype=torch.float32).to(device)
+    df_y_labels = pd.read_csv(y_filename,sep="\t")
+    df_y_labels = df_y_labels.drop_duplicates(subset='accession', keep='first')
+    df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
 
-    # Y test
-    y_test = pd.DataFrame(df_test)
-    y_test  = y_test[['ogt']]
-    y_total_unique += list(np.unique(y_test.values))
-    y_test  = torch.tensor(y_test.values).to(device)
-    y_test  = y_test .squeeze(1)
-    y_test  = y_test.float()
-    
-    # X test
-    X_test = df_test.drop(columns=["acc", "ogt", "min", "max", "ogt_split", "min_split", "max_split"])
-    X_test_column_names = X_test.columns
-    matrix = X_test.values
-    X_data = torch.tensor(matrix)
-    X_test = X_data.float().to(device)
-    X_test_numpy = X_test.cpu().numpy()
-    if precence_only_flag == True:
-        X_test_numpy = (X_test_numpy > 0).astype(int)
-    #scaler = MaxAbsScaler()
-    X_test_scaled = X_test_numpy#scaler.fit_transform(X_test_numpy)
-    X_test = torch.tensor(X_test_scaled, dtype=torch.float32).to(device)
+    taxa_label = pd.read_csv(taxa_filename,sep="\t")
+    taxa_label = taxa_label.drop_duplicates(subset='accession', keep='first')
 
-    # Convert to 0-N categories
-    y_total_unique = list(np.unique(y_total_unique))
+    df_merged = pd.merge(df_merged, taxa_label, on='accession', how='inner') 
 
-    # Create the linspace and distribute the point sto categories
-    categories_linspace = np.linspace(min(y_total_unique), max(y_total_unique), num_class)
+    taxa_label =  df_merged.iloc[:, -1].tolist()
+    df_merged = df_merged.drop(columns=df_merged.columns[-1])
 
-    y_train_np = y_train.cpu().numpy() if y_train.is_cuda else y_train.numpy()
-    y_test_np = y_test.cpu().numpy() if y_test.is_cuda else y_test.numpy()
-    if ogt_continuous_flag == True:
-        y_train = y_train_np[:]
-        y_test = y_test_np[:]
-    else:
-        y_train = np.digitize(y_train_np, categories_linspace, right=True)
-        y_test = np.digitize(y_test_np, categories_linspace, right=True)
-    
+    X_val = df_merged.drop(columns=['annotation', 'accession']).values
+    X_val = torch.tensor(X_val)
+    X_val = X_val.float().to(device)
+    X_val_numpy = X_val.cpu().numpy()
+    X_val = torch.tensor(X_val_numpy, dtype=torch.float32).to(device)
 
-    # Convert labels to the right format
-    y_test  = torch.tensor(y_test).to(device)
-    y_test  = y_test.float()
-    y_train  = torch.tensor(y_train).to(device)
-    y_train  = y_train.float()
+    y_label = df_merged["annotation"].map({'Diderm': 0, 'Monoderm': 1})
+    y_label = torch.tensor(y_label.values).to(device)
+    y_label = y_label.float()
+    return X_val, y_label, X_train_column_names[1:], taxa_label
 
-    return X_train.to(device), X_train_column_names, y_train.to(device), X_test.to(device), X_test_column_names, y_test.to(device), categories_linspace
-
-def read_diderm_data(X_filename, y_filename, device):
+def read_aerob_data(X_filename, y_filename, taxa_filename, device):
     df_x_data = pd.read_csv(X_filename,sep="\t")
 
     X_train_column_names = df_x_data.columns
@@ -134,22 +86,22 @@ def read_diderm_data(X_filename, y_filename, device):
 
     df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
 
-    X_val = df_merged.drop(columns=['high_throughput_dermy', 'accession']).values
+    X_val = df_merged.drop(columns=['annotation', 'accession']).values
+    
     X_val = torch.tensor(X_val)
     X_val = X_val.float().to(device)
     X_val_numpy = X_val.cpu().numpy()
- #   scaler = MaxAbsScaler()
-   # X_val_scaled = scaler.fit_transform(X_val_numpy)
     X_val = torch.tensor(X_val_numpy, dtype=torch.float32).to(device)
 
-    y_label = df_merged["high_throughput_dermy"].map({'Diderm': 0, 'Monoderm': 1})
+    y_label = df_merged["annotation"].map({'anaerobe': 0, 'aerobe': 1})
     y_label = torch.tensor(y_label.values).to(device)
-   # y_label = y_label.squeeze(1)
+
     y_label = y_label.float()
+    taxa_label = pd.read_csv(taxa_filename,sep="\t")
+    taxa_label = taxa_label.iloc[:, -1].tolist()
+    return X_val, y_label, X_train_column_names[1:], taxa_label
 
-    return X_val, y_label, X_train_column_names[1:]
-
-def read_aerob_data(
+def read_aerob_data11(
     X_data_path='../data_aerob/all_gene_annotations.tsv', 
     y_data_path = '../data_aerob/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv',
     bac_phylogeny_data_path='../data_preparation/gtdb_files/bac120_metadata_r202.tsv', 
@@ -192,8 +144,6 @@ def read_aerob_data(
     print(f'Data without noise: {len(full_data)}')
 
     # Map y labels
-    y = y_data
-    
     classes_map = {
         'anaerobe': 0,
         'aerobe': 1,
@@ -348,7 +298,7 @@ def generate_colors_from_colormap(colormap_name, N):
    
    return listed_cmap, colors
 
-def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None):
+def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None, legend = False, colorbar = False):
    scaler = MaxAbsScaler()
 
    # Fit and transform the data
@@ -357,13 +307,9 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names =
    # Run PCA on the X-data
    pca = PCA(n_components=n_compon)
    X_train_pca = pca.fit_transform(X_train_val)
-   print(f"Data after PCA reduction: {X_train_pca.shape}")
 
    # Find the explained variance
    explained_variance_ratio = pca.explained_variance_ratio_
-
-   print("Explained variance ratio:", explained_variance_ratio)
-   print("Total explained variance:", sum(explained_variance_ratio))
 
    listed_cmap = None
 
@@ -393,13 +339,14 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names =
            # Create legend handles and labels based on unique labels
            handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor=listed_cmap(i / len(unique_ids)), markersize=10) for i in range(len(unique_ids))]
        
-
-           plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5) #, bbox_to_anchor=(1.05, 1)
-       else:
-           plt.colorbar()    
+           if legend:
+               plt.legend(handles=handles, labels=labels ,loc='upper center', title="Categories", ncol=5, bbox_to_anchor=(0.5, -0.1)) #, bbox_to_anchor=(1.05, 1)
+    #    else:
+    #        plt.colorbar()    
    else:
        scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], alpha=0.6, s = 10)
-          
+   if colorbar is True:
+       plt.colorbar()            
    plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0],2)}")
    plt.ylabel(f"PC 2; var = {round(explained_variance_ratio[1],2)}")
    plt.title("PCA space")
@@ -413,7 +360,7 @@ false_posit_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 false_negat_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 
-def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, colors = None):
+def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, colors = None, colorbar = False):
     scaler = MaxAbsScaler()
 
     # Fit and transform the data
@@ -436,11 +383,11 @@ def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, c
 
     # Visualize the t-SNE output
     if y_train is not None:
-        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=0.5, s = 10, cmap=listed_cmap)
-        if colors is None:
-            plt.colorbar()    
+        sc = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=0.5, s = 10, cmap=listed_cmap)
     else:
-        plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s = 10)
+        sc = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s = 10)
+    if colorbar is True and y_train is not None:
+        plt.colorbar(sc)        
     plt.xlabel("tSNE1")
     plt.ylabel("tSNE2")
     plt.title("tSNE space")    
@@ -636,4 +583,49 @@ def xgboost_accuracy_contin(X_train, X_test, y_train, y_test, sorted_cog_idx, fe
         rmse_cv_arr.append(rmse_cv)
         r2_cv = r2_score(y_true_cv, y_pred_cv)
         r2_cv_arr.append(r2_cv)
+
     return rmse_test_arr, r2_test_arr, rmse_cv_arr, r2_cv_arr, num_feat_plot 
+
+
+def plot_accuracy_metric(metric, test_accuracy_scores, cv_accuracy_scores, test_accur_arr, test_accur_arr_rem, cv_accur_arr, cv_accur_arr_rem, num_feat, tot_num_feat):
+    plt.axhline(y=test_accuracy_scores[metric], color='darkred', linestyle='--', linewidth=1.5, label='baseline test')
+    plt.axhline(y=cv_accuracy_scores[metric], color='darkblue', linestyle='--', linewidth=1.5, label='baseline CV')
+
+    plt.plot(num_feat, [scores[metric] for scores in test_accur_arr], c = "tab:red", label = "test | add")
+    plt.plot(num_feat, [scores[metric] for scores in cv_accur_arr], c = "tab:blue", label = "cv | add")
+
+    plt.plot([tot_num_feat - n for n in num_feat] ,  [scores[metric] for scores in test_accur_arr_rem], c = "tab:red", label = "test | remove", alpha = 0.5)
+    plt.plot([tot_num_feat - n for n in num_feat], [scores[metric] for scores in cv_accur_arr_rem], c = "tab:blue", label = "cv | remove", alpha = 0.5)
+
+    plt.xlabel("number of features added/removed")
+    plt.ylabel(metric)
+
+
+def random_feat_removal_curves_ogt(X_train, X_test, y_train, y_test, num_runs, feat_step, feat_removal):
+    tot_num_feat = X_train.cpu().shape[1]
+    rmse_test_arr_mi_tot = []
+    r2_test_arr_mi_tot = []
+    rmse_cv_arr_mi_tot = []
+    r2_cv_arr_mi_tot = []
+    
+    for _ in range(num_runs):
+        shuffled_indices = np.random.permutation(tot_num_feat)
+        rmse_test_arr_mi, r2_test_arr_mi, rmse_cv_arr_mi, r2_cv_arr_mi, num_feat_plot = xgboost_accuracy_contin(X_train.cpu(), X_test.cpu(), y_train, y_test, shuffled_indices, feat_step, feat_removal)
+        rmse_test_arr_mi_tot.append(rmse_test_arr_mi)
+        r2_test_arr_mi_tot.append(r2_test_arr_mi)
+        rmse_cv_arr_mi_tot.append(rmse_cv_arr_mi)
+        r2_cv_arr_mi_tot.append(r2_cv_arr_mi)
+        
+    rmse_test_arr_mi_mean = np.array(rmse_test_arr_mi_tot).mean(axis=0)  
+    rmse_test_arr_mi_std = np.array(rmse_test_arr_mi_tot).std(axis=0)  
+    
+    r2_test_arr_mi_mean = np.array(r2_test_arr_mi_tot).mean(axis=0)  
+    r2_test_arr_mi_std = np.array(r2_test_arr_mi_tot).std(axis=0)  
+    
+    rmse_cv_arr_mi_mean = np.array(rmse_cv_arr_mi_tot).mean(axis=0)  
+    rmse_cv_arr_mi_std = np.array(rmse_cv_arr_mi_tot).std(axis=0)  
+    
+    r2_cv_arr_mi_mean = np.array(r2_cv_arr_mi_tot).mean(axis=0)  
+    r2_cv_arr_mi_std = np.array(r2_cv_arr_mi_tot).std(axis=0)  
+    return rmse_test_arr_mi_mean, rmse_test_arr_mi_std, r2_test_arr_mi_mean, r2_test_arr_mi_std, rmse_cv_arr_mi_mean, rmse_cv_arr_mi_std, r2_cv_arr_mi_mean, r2_cv_arr_mi_std    
+
