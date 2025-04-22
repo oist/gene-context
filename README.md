@@ -1,43 +1,31 @@
 
-This repository contains the implementation of the Set Transformer model for predicting phenotypes from gene count data.  
+This repository contains the following directories.
 
-At the moment, two phenotypes are supported: `aerob` and `ogt`.
-The `set_transformer/main.py` script calls cross-validation, training and test functions, which are implemented in `set_transformer/train_test_func.py`. 
+# Genome Denoising
+TODO
 
-The input train and test data are the following:
+# Phenotype Prediction
 
-1. For phenotype  = `aerob`:
-    - data_aerob/all_gene_annotations.added_incompleteness_and_contamination.subsampled.training.tsv
-    - data_aerob/all_gene_annotations.added_incompleteness_and_contamination.subsampled.testing.tsv
-    - data_aerob/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv
-    - data_aerob/bac120_metadata_r202.tsv
-    - data_aerob/ar122_metadata_r202.tsv
+This directory contains implementations of the phenotype prediction and feature selection pipelines. The directory structure is the following:
+- data_preparation: contains pipeline and data for test/train data split,
+- data_[phenotype]: input/output data directory for [phenotype],
+- jupyter_notebooks: contains notebooks with the scripts for phenotype prediction and feature selection for each phenotype.
 
-2. For phenotype  = 'ogt':
-    - data_ogt/kegg.csv
-    - data_ogt/ogt_splits.csv
+At the moment, there are three phenotypes:
+- aerobicity,
+- OGT,
+- mono/didermy.
 
-The results of the training and cross-validation are saved to `results/SetTransformer/{phenotype}`. 
-
-The scripts generate and save:
-- prediction_probabilities_cross_valid_fold_{fold_id}_SetTransformer_indPoints_{num_ind_points}.csv
-- prediction_probabilities_holdout_test_SetTransformer_indPoints_{num_ind_points}.csv
-- trained_model_SetTransformer_indPoints_{num_ind_points}_D_{D_val}_K_{K_val}_dim_output_{dim_output_val}.model
-
-The input data files can be found  [here](https://office365oist-my.sharepoint.com/:f:/g/personal/a-koldaeva_oist_jp/Es-FfClDP6JFgNvpg0ga1aEB_v3foyEEJQ2oED3Ic-dTrw?email=GERGELY.SZOLLOSI%40OIST.JP&e=y5R136) (request access if needed).
+First, the input test/train datasets should be generated for the chosen phenotype. The split is done at a chosen taxonomy level (i.e. samples from the same taxonomy group are not split between train and test). To generate the input splits, run the following (see `taxa_level_split.py` description for more details)
 
 
-
-The below command will run cross-validation, training, and testing of a Set Transformer model for the specified parameters.    
-```bash
-    python3 -m set_transformer.main --num_inds {num_inds_val} --learning_rate {learning_rate_val} --num_epochs {num_epochs_val} --batch_size {batch_size_val} --phenotype [ogt/aerob]
+```bash 
+cd ~/gene-context/phenotype_prediction
+python3 -m data_preparation.taxa_level_split \ --tax_level [tax_level] \ --input_annotation_csv [input_annotation_csv] \ --input_data_csv [input_data_csv] \ --output_dir [output_dir]
 ```
-E.g.
-```bash
-    python3 -m set_transformer.main --num_inds 20 --learning_rate 0.0001 --num_epochs 10 --batch_size 32 --phenotype ogt
-```
-Or
 
-```bash
-    python3 -m set_transformer.main --num_inds 20 --learning_rate 0.0001 --num_epochs 10 --batch_size 32 --phenotype aerob
-```
+Please, note that `ar122_metadata_r202.tsv` and `bac120_metadata_r202.tsv` are required to be stored in `gene-context/phenotype_prediction/data_preparation/gtdb_files` in order to run the above command.
+
+After the inputs are generated, a notebook for the corresponding [phenotype] can be run.
+
+
