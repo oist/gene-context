@@ -244,3 +244,78 @@ def make_cog_descr(df):
         cogs_df[column] = cogs_df[column] + ': ' + df_descr[f'Description'].fillna('')
 
     return cogs_df[['MI', 'RandomForest', 'SHAP']]
+
+def xgboost_accur_select_features_rand(
+    X_val_train, X_val_test, 
+    y_label_train, y_label_test, 
+    feat_step, DEVICE, feat_removal,
+    n_cols, reps):
+    """
+    Randomly shuffle features and evaluate the accuracy of the XGBoost model.
+
+    Parameters:
+        X_val_train: Training feature dataset.
+        X_val_test: Testing feature dataset.
+        y_label_train: Training labels.
+        y_label_test: Testing labels.
+        feat_step: Step size for feature selection.
+        DEVICE: Device to be used (e.g., 'cpu' or 'gpu').
+        feat_removal: Method for feature removal: False if adding, True if removing.
+        n_cols: Number of features in the dataset in total.
+        reps: Number of repetitions for shuffling and evaluating.
+
+    Returns:
+        cv_accur_arr_rand: List of cross-validation accuracies for each repetition.
+        test_accur_arr_rand: List of test accuracies for each repetition.
+        num_feat_rand: List of feature counts used in each repetition.
+    """
+    
+    idx = list(range(n_cols))
+
+    cv_accur_arr_rand = []
+    test_accur_arr_rand = []
+    num_feat_rand = []
+
+    for i in range(reps):
+        # Shuffle idx
+        shuffled_idx_cur = idx.copy()
+        random.Random(i).shuffle(shuffled_idx_cur)
+        
+        # Train model
+        cv_accur_arr_cur, test_accur_arr_cur, num_feat_cur = xgboost_accur_select_features(
+            X_val_train.cpu(), 
+            X_val_test.cpu(), 
+            y_label_train.cpu(), 
+            y_label_test.cpu(), 
+            shuffled_idx_cur, 
+            feat_step, 
+            DEVICE, 
+            feat_removal
+        )       
+
+        cv_accur_arr_rand.append(cv_accur_arr_cur)
+        test_accur_arr_rand.append(test_accur_arr_cur)
+        num_feat_rand.append(num_feat_cur)
+        
+    return cv_accur_arr_rand, test_accur_arr_rand, num_feat_rand
+
+
+def plot_accuracy_metric_rand(metric, test_accur_arr_rand, num_feat_rand):
+    """
+    Plot the accuracy metric against the number of features used.
+
+    Parameters:
+        metric: The specific accuracy metric to plot (e.g., 'accuracy', 'f1_score').
+        test_accur_arr_rand: List of test accuracies for each repetition.
+        num_feat_rand: List of feature counts used in each repetition.
+    """
+    
+    n_features = []
+    metric_values = []
+
+    for i, repetition in enumerate(test_accur_arr_rand):
+        for j, metrics in enumerate(repetition):
+            n_features.append(num_feat_rand[i][j])
+            metric_values.append(metrics[metric])
+
+    sns.lineplot(x=n_features, y=metric_values, errorbar='ci', color='black')
