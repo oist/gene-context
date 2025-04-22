@@ -77,7 +77,31 @@ def read_diderm_data(X_filename, y_filename, taxa_filename, device):
     y_label = y_label.float()
     return X_val, y_label, X_train_column_names[1:], taxa_label
 
-def read_aerob_data(
+def read_aerob_data(X_filename, y_filename, taxa_filename, device):
+    df_x_data = pd.read_csv(X_filename,sep="\t")
+
+    X_train_column_names = df_x_data.columns
+
+    df_y_labels = pd.read_csv(y_filename,sep="\t")
+
+    df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
+
+    X_val = df_merged.drop(columns=['annotation', 'accession', 'oxytolerance']).values
+    
+    X_val = torch.tensor(X_val)
+    X_val = X_val.float().to(device)
+    X_val_numpy = X_val.cpu().numpy()
+    X_val = torch.tensor(X_val_numpy, dtype=torch.float32).to(device)
+
+    y_label = df_merged["oxytolerance"].map({'anaerobe': 0, 'aerobe': 1})
+    y_label = torch.tensor(y_label.values).to(device)
+
+    y_label = y_label.float()
+    taxa_label = pd.read_csv(taxa_filename,sep="\t")
+    taxa_label = taxa_label.iloc[:, -1].tolist()
+    return X_val, y_label, X_train_column_names[1:], taxa_label
+
+def read_aerob_data11(
     X_data_path='../data_aerob/all_gene_annotations.tsv', 
     y_data_path = '../data_aerob/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv',
     bac_phylogeny_data_path='../data_preparation/gtdb_files/bac120_metadata_r202.tsv', 
@@ -274,6 +298,7 @@ def generate_colors_from_colormap(colormap_name, N):
    
    return listed_cmap, colors
 
+def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None, legend = False):
 def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None, legend = False):
    scaler = MaxAbsScaler()
 
