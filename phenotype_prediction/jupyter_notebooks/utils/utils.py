@@ -572,7 +572,7 @@ def train_xgboost_classification(X_train, y_train, X_test, y_test, num_classes=5
 
 
 
-def train_xgboost(X_train, y_train, X_test, y_test):
+def train_xgboost(X_train, y_train, X_test, y_test, weights = None):
     model = XGBRegressor(
     n_jobs=-1,                # Use all CPU cores
     tree_method="hist",   # Use "hist" for CPU, "gpu_hist" for GPU
@@ -585,11 +585,19 @@ def train_xgboost(X_train, y_train, X_test, y_test):
     y_true_list = []
     y_pred_list = []
 
+    if weights is not None:
+        weights_tensor_all = torch.tensor(weights, dtype=torch.float32)
+
     for train_idx, test_idx in kf.split(X_train):
         X_fold_train, X_fold_test = X_train[train_idx], X_train[test_idx]
         y_fold_train, y_fold_test = y_train[train_idx], y_train[test_idx]
 
-        model.fit(X_fold_train, y_fold_train)
+        if weights is not None:
+            weights_fold_train = weights_tensor_all[train_idx]
+            model.fit(X_fold_train, y_fold_train, sample_weight=weights_fold_train)
+        else:
+            model.fit(X_fold_train, y_fold_train)    
+
         y_pred_fold = model.predict(X_fold_test)
 
         y_true_list.append(y_fold_test)
@@ -599,7 +607,10 @@ def train_xgboost(X_train, y_train, X_test, y_test):
     y_true_cv = np.concatenate(y_true_list)
     y_pred_cv = np.concatenate(y_pred_list)   
 
-    model.fit(X_train.cpu(), y_train.cpu().numpy())
+    if weights is not None:
+        model.fit(X_train.cpu(), y_train.cpu().numpy(), weights_tensor_all)
+    else:
+        model.fit(X_train.cpu(), y_train.cpu().numpy())    
 
     # Make predictions
     y_pred_test = model.predict(X_test.cpu())

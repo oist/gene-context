@@ -28,10 +28,10 @@ class SetTransformer(nn.Module): #768 512
     def _init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Linear):
-               # torch.nn.init.xavier_uniform_(m.weight)
-                torch.nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+                # Xavier initialization (also known as Glorot initialization)
+                torch.nn.init.xavier_uniform_(m.weight)  # Initialize weights using Xavier uniform
                 if m.bias is not None:
-                    torch.nn.init.zeros_(m.bias)
+                    torch.nn.init.zeros_(m.bias)  # Initialize biases to zero
 
     def forward(self, X):
         return self.dec(self.enc(X))    
