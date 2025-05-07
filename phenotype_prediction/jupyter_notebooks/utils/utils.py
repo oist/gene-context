@@ -18,7 +18,7 @@ from matplotlib.colors import ListedColormap
 from sklearn.preprocessing import MaxAbsScaler
 
 from sklearn.model_selection import cross_val_predict, KFold
-from xgboost import XGBRegressor
+from xgboost import XGBRegressor, XGBClassifier
 
 from sklearn.metrics import mean_squared_error,r2_score
 
@@ -522,6 +522,55 @@ def plot_results(column_name, num_ind_points, fp_to_plot, tables_average_folds):
     
     plt.grid(True, zorder=1)
     plt.show()  
+
+import numpy as np
+from xgboost import XGBClassifier
+from sklearn.model_selection import KFold, StratifiedKFold
+
+
+def train_xgboost_classification(X_train, y_train, X_test, y_test, num_classes=50):
+    
+    model = XGBClassifier(
+        n_jobs=-1,
+        tree_method="hist",
+        objective="multi:softmax",   # Multi-class classification
+        num_class=num_classes,       # Number of target classes
+        eval_metric="mlogloss",      # Suitable for multi-class
+    )
+
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    y_true_list = []
+    y_pred_list = []
+
+    for train_idx, test_idx in kf.split(X_train, y_train):
+        X_fold_train, X_fold_test = X_train[train_idx], X_train[test_idx]
+        y_fold_train, y_fold_test = y_train[train_idx], y_train[test_idx]
+
+        model.fit(X_fold_train, y_fold_train)
+        y_pred_fold = model.predict(X_fold_test)
+
+        y_true_list.append(y_fold_test)
+        y_pred_list.append(y_pred_fold)
+
+    y_true_cv = np.concatenate(y_true_list)
+    y_pred_cv = np.concatenate(y_pred_list)
+
+    # Re-initializa the model
+    model = XGBClassifier(
+        n_jobs=-1,
+        tree_method="hist",
+        objective="multi:softmax",   # Multi-class classification
+        num_class=num_classes,       # Number of target classes
+        eval_metric="mlogloss",      # Suitable for multi-class
+    )
+    model.fit(X_train.cpu(), y_train.cpu())
+
+    y_pred_test = model.predict(X_test.cpu())
+
+    return y_true_cv, y_pred_cv, y_pred_test
+
+
 
 def train_xgboost(X_train, y_train, X_test, y_test):
     model = XGBRegressor(

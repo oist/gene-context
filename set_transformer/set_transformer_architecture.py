@@ -23,6 +23,16 @@ class SetTransformer(nn.Module): #768 512
                 nn.Dropout(0.3),
                 nn.Linear(dim_hidden, dim_output))
 
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+               # torch.nn.init.xavier_uniform_(m.weight)
+                torch.nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+                if m.bias is not None:
+                    torch.nn.init.zeros_(m.bias)
+
     def forward(self, X):
         return self.dec(self.enc(X))    
 
