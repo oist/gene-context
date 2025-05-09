@@ -45,8 +45,11 @@ def read_ogt_data(X_filename, y_filename, taxa_filename, device):
     y_label = torch.tensor(y_label.values).to(device)
     y_label = y_label.float()
 
-    taxa_label = pd.read_csv(taxa_filename,sep="\t")
-    taxa_label = taxa_label.iloc[:, -1].tolist()
+    if taxa_filename is not None:
+        taxa_label = pd.read_csv(taxa_filename,sep="\t")
+        taxa_label = taxa_label.iloc[:, -1].tolist()
+    else:
+        taxa_label = None    
     return X_val, y_label, X_train_column_names[1:], taxa_label
 
 def read_diderm_data(X_filename, y_filename, taxa_filename, device):
@@ -689,3 +692,29 @@ def random_feat_removal_curves_ogt(X_train, X_test, y_train, y_test, num_runs, f
     r2_cv_arr_mi_std = np.array(r2_cv_arr_mi_tot).std(axis=0)  
     return rmse_test_arr_mi_mean, rmse_test_arr_mi_std, r2_test_arr_mi_mean, r2_test_arr_mi_std, rmse_cv_arr_mi_mean, rmse_cv_arr_mi_std, r2_cv_arr_mi_mean, r2_cv_arr_mi_std    
 
+def calculate_aver_std(y_test_np, diff_np, num_bins):
+    # Define bins (adjust bin width as needed)
+    bins = np.linspace(y_test_np.min(), y_test_np.max(), num=num_bins)
+    bin_centers = 0.5 * (bins[1:] + bins[:-1])
+    
+    # Digitize y_test to find bin indices
+    bin_indices = np.digitize(y_test_np, bins) - 1  # shift to 0-based
+    
+    # Initialize arrays for mean and std
+    mean_diff = []
+    std_diff = []
+    
+    # Compute mean and std of diff per bin
+    for i in range(len(bin_centers)):
+        bin_mask = bin_indices == i
+        if np.any(bin_mask):
+            mean_diff.append(np.mean(diff_np[bin_mask]))
+            std_diff.append(np.std(diff_np[bin_mask]))
+        else:
+            mean_diff.append(np.nan)
+            std_diff.append(np.nan)
+    
+    # Convert to arrays for plotting
+    mean_diff = np.array(mean_diff)
+    std_diff = np.array(std_diff)
+    return bin_centers, mean_diff, std_diff

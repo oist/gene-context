@@ -3,6 +3,7 @@ import sys
 import random
 import logging
 import argparse
+import numpy as np
 import polars as pl
 
 """
@@ -12,7 +13,7 @@ Inputs:
     - gtdb metadata files (stored in ~/gene-context/phenotype_prediction/data_preparation/gtdb_files/),
     - input_annotation_csv: input csv with genome names and annotations,
     - input_data_csv: input csv with COG counts,
-    - tax_level: desired taxonomy level for splitting;
+    - tax_level: desired taxonomy level for splitting OR "random" for random train/test split that doesn't take into account any taxonomy;
     - output_dir: desired output directory
 
 Outputs:
@@ -77,11 +78,27 @@ if __name__ == '__main__':
     # Dictionary with possible taxonomy levels and their indices in the gtdb table
     tax_levels = {"domain": 0, "phylum": 1, "class": 2, "order": 3, "family": 4, "genus": 5, "species": 6}
 
+    # Resulting filenames
+    train_data_filename = f"{args.output_dir}/{tax_level}/train_data_{tax_level}_tax_level"
+    train_annot_filename = f"{args.output_dir}/{tax_level}/train_annot_{tax_level}_tax_level"
+    train_taxa_filename = f"{args.output_dir}/{tax_level}/train_taxa_names_{tax_level}_tax_level"
+
+    test_data_filename = f"{args.output_dir}/{tax_level}/test_data_{tax_level}_tax_level"
+    test_annot_filename = f"{args.output_dir}/{tax_level}/test_annot_{tax_level}_tax_level"
+    test_taxa_filename = f"{args.output_dir}/{tax_level}/test_taxa_names_{tax_level}_tax_level"
+
+    # Fix the random seed
+    random.seed(RANDOM_SEED)
+
+    # Create output directory if it doesn't exist
+    if not os.path.exists(f"{args.output_dir}/{tax_level}"):
+        os.makedirs(f"{args.output_dir}/{tax_level}")
+
     # Try and process the input dfs for the provided tax level
-    if tax_level not in tax_levels.keys():
-        logging.error(f"Provided tax_level '{tax_level}' is not valid! Choose one of {list(tax_levels.keys())}.")
+    if tax_level not in tax_levels.keys() and tax_level != "random":
+        logging.error(f"Provided tax_level '{tax_level}' is not valid! Choose one of {list(tax_levels.keys())} or 'random'.")
         sys.exit(1)
-    else:
+    elif  tax_level in tax_levels.keys():
         # Read and concatenate the gtdb dfs
         gtdb_df = pl.concat([pl.read_csv(BAC_TSV, separator="\t"),
             pl.read_csv(ARC_TSV, separator="\t")])
@@ -95,9 +112,8 @@ if __name__ == '__main__':
         input_df_annot = input_df_annot.rename({old_name: "annotation"})
 
         # Read input count table
-        logging.info("Reading input count table ...")
         input_df_counts = pl.read_csv(args.input_data_csv, separator="\t")
-        print(f"Reading input count table with {len(input_df_counts)} rows")
+        print(f"Reading input count table with {len(input_df_counts)} rows...")
 
         # Concatenate it with the gtdb df
         joined_df = gtdb_df.join(input_df_annot, on="accession", how="left")
@@ -114,7 +130,6 @@ if __name__ == '__main__':
         print(f"Found {len(all_groups)} groups at {tax_level} taxonomy level from {len(joined_df)} data points")
 
         # Randomly order the groups
-        random.seed(RANDOM_SEED)
         random.shuffle(all_groups)
         
         # Split them into test and train
@@ -124,10 +139,6 @@ if __name__ == '__main__':
             testing_set_size += len(joined_df.filter(pl.col(tax_level) == group))  
         print(f"Found {len(all_groups)} training groups at {tax_level} taxonomy level, comprising {len(joined_df) - testing_set_size} data points")    
         print(f"Found {len(testing_families)} testing groups at {tax_level} taxonomy level, comprising {testing_set_size} data points")
-
-        # Create output directory if it doesn't exist
-        if not os.path.exists(f"{args.output_dir}/{tax_level}"):
-            os.makedirs(f"{args.output_dir}/{tax_level}")
 
         # Save the train/test group lists to txt files
         train_filename = f"{args.output_dir}/{tax_level}/train_groups_{tax_level}_tax_level"
@@ -139,14 +150,52 @@ if __name__ == '__main__':
             f.write("\n".join(x for x in testing_families if x is not None))    
 
         # Save the train/test data files to txt files
+        save_selected_data_and_annot(joined_df, all_groups, tax_level, train_data_filename, train_annot_filename, train_taxa_filename)
+        save_selected_data_and_annot(joined_df, testing_families, tax_level, test_data_filename, test_annot_filename, test_taxa_filename)
+
+        print("Finished!")
+    else: # if "random" splitting
+        # Read input csv with annotations
+        input_df_annot = pl.read_csv(args.input_annotation_csv, separator="\t")
+        old_name = input_df_annot.columns[-1]
+        input_df_annot = input_df_annot.rename({old_name: "annotation"})
+
+        # Read input count table
+        input_df_counts = pl.read_csv(args.input_data_csv, separator="\t")
+        print(f"Reading input count table with {len(input_df_counts)} rows...")        
+
+        # Concatenate it with the gtdb df
+        joined_df = input_df_counts.join(input_df_annot, on="accession", how="left")
+        joined_df = joined_df.filter(pl.col("annotation").is_not_null())
+
+        # Shuffle the rows
+        shuffled_indices = np.random.permutation(joined_df.height)
+        joined_df = joined_df[shuffled_indices.tolist()]
+
+        # Split the table into train and test
+        test_size = int(len(joined_df) * TEST_DATA_SIZE)
+        table_train = joined_df[test_size:]                 
+        table_test  = joined_df[:test_size]               
+
+        print(f"Found {len(table_train)} data points for the train set")    
+        print(f"Found {len(table_test)} data points for the test set")
+
+        # Save the train data and annotations
         train_data_filename = f"{args.output_dir}/{tax_level}/train_data_{tax_level}_tax_level"
         train_annot_filename = f"{args.output_dir}/{tax_level}/train_annot_{tax_level}_tax_level"
-        train_taxa_filename = f"{args.output_dir}/{tax_level}/train_taxa_names_{tax_level}_tax_level"
-        save_selected_data_and_annot(joined_df, all_groups, tax_level, train_data_filename, train_annot_filename, train_taxa_filename)
 
+        train_df_annot = table_train.select(["accession", "annotation"])
+        train_df_annot.write_csv(train_annot_filename, separator="\t")
+        table_train = table_train.drop("annotation")
+        table_train.write_csv(train_data_filename, separator="\t")
+
+        # Save the test data and annotations
         test_data_filename = f"{args.output_dir}/{tax_level}/test_data_{tax_level}_tax_level"
         test_annot_filename = f"{args.output_dir}/{tax_level}/test_annot_{tax_level}_tax_level"
-        test_taxa_filename = f"{args.output_dir}/{tax_level}/test_taxa_names_{tax_level}_tax_level"
-        save_selected_data_and_annot(joined_df, testing_families, tax_level, test_data_filename, test_annot_filename, test_taxa_filename)
+
+        train_df_annot = table_test.select(["accession", "annotation"])
+        train_df_annot.write_csv(test_annot_filename, separator="\t")
+        table_test = table_test.drop("annotation")
+        table_test.write_csv(test_data_filename, separator="\t")
 
         print("Finished!")
