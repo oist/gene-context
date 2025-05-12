@@ -576,11 +576,14 @@ def train_xgboost_classification(X_train, y_train, X_test, y_test, num_classes=5
 
 
 def train_xgboost(X_train, y_train, X_test, y_test, weights = None):
-    model = XGBRegressor(
-    n_jobs=-1,                # Use all CPU cores
-    tree_method="hist",   # Use "hist" for CPU, "gpu_hist" for GPU
-    objective="reg:squarederror",  # Default loss function for regression
-    )
+    # model = XGBRegressor(
+    # n_jobs=-1,                # Use all CPU cores
+    # tree_method="hist",   # Use "hist" for CPU, "gpu_hist" for GPU
+    # objective="reg:squarederror",  # Default loss function for regression
+    # n_estimators=500, 
+    # )
+
+    model = XGBRegressor(reg_alpha=1.0,reg_lambda=1.0, max_depth=3,subsample=0.8, colsample_bytree=0.8, n_estimators=300,learning_rate=0.05)
 
     # Define cross-validation (e.g., 5-fold)
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
