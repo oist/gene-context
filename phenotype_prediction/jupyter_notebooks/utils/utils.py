@@ -584,9 +584,7 @@ def train_xgboost(X_train, y_train, X_test, y_test, weights = None, model = None
     # )
 
     if model is None:
-        model = XGBRegressor(reg_alpha=1.0,reg_lambda=1.0, max_depth=3,subsample=0.8, colsample_bytree=0.8, n_estimators=300,learning_rate=0.05)
-    else:
-        model = model    
+        model = XGBRegressor(reg_alpha=1.0,reg_lambda=1.0, max_depth=3,subsample=0.8, colsample_bytree=0.8, n_estimators=300,learning_rate=0.05) 
 
     
 
@@ -619,7 +617,7 @@ def train_xgboost(X_train, y_train, X_test, y_test, weights = None, model = None
     y_pred_cv = np.concatenate(y_pred_list)   
 
     if weights is not None:
-        model.fit(X_train.cpu(), y_train.cpu().numpy(), weights_tensor_all)
+        model.fit(X_train.cpu(), y_train.cpu().numpy(), sample_weight=weights_tensor_all)
     else:
         model.fit(X_train.cpu(), y_train.cpu().numpy())    
 
