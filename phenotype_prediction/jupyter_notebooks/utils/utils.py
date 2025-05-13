@@ -626,7 +626,7 @@ def train_xgboost(X_train, y_train, X_test, y_test, weights = None, model = None
     # Make predictions
     y_pred_test = model.predict(X_test.cpu())
 
-    return  y_true_cv, y_pred_cv, y_pred_test
+    return  y_true_cv, y_pred_cv, y_pred_test, model
 
 def xgboost_accuracy_contin(X_train, X_test, y_train, y_test, sorted_cog_idx, feat_step, feat_removal = False):
     rmse_test_arr = []
