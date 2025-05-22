@@ -38,7 +38,7 @@ def read_ogt_data(X_filename, y_filename, taxa_filename, device):
     X_train_column_names = df_x_data.columns
     X_val = df_x_data.drop(columns=['accession']).values
     X_val = torch.tensor(X_val)
-    X_val = X_val.int().to(device)
+    X_val = X_val.float().to(device)
 
     y_label = pd.read_csv(y_filename,sep="\t")
     y_label = y_label.drop(columns=['accession'])

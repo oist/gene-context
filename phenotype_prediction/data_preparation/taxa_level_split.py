@@ -31,6 +31,8 @@ E.g.
     python3 -m data_preparation.taxa_level_split --tax_level phylum --input_annotation_csv data_diderm/gold_standard1.tsv --input_data_csv data_diderm/all_gene_annotations.tsv --output_dir data_diderm/input_data
     python3 -m data_preparation.taxa_level_split --tax_level phylum --input_annotation_csv data_host/all_annotations.csv --input_data_csv data_host/all_genes.csv --output_dir data_host/input_data
     python3 -m data_preparation.taxa_level_split --tax_level phylum --input_annotation_csv data_ogt/ogt_annot.csv --input_data_csv data_ogt/kegg.csv --output_dir data_ogt/input_data
+    python3 -m data_preparation.taxa_level_split  --tax_level phylum --input_annotation_csv data_aerob/bacdive_scrape_20230315.json.parsed.anaerobe_vs_aerobe.with_cyanos.csv --input_data_csv data_aerob/all_gene_annotations.tsv --output_dir data_aerob/input_data
+
 """
 
 BAC_TSV = 'data_preparation/gtdb_files/bac120_metadata_r202.tsv'
@@ -161,8 +163,10 @@ if __name__ == '__main__':
         input_df_annot = input_df_annot.rename({old_name: "annotation"})
 
         # Read input count table
-        input_df_counts = pl.read_csv(args.input_data_csv, separator="\t")
+        input_df_counts = pl.read_csv(args.input_data_csv, separator=",")
         print(f"Reading input count table with {len(input_df_counts)} rows...")        
+
+        print(input_df_counts)
 
         # Concatenate it with the gtdb df
         joined_df = input_df_counts.join(input_df_annot, on="accession", how="left")
