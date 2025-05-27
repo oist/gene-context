@@ -6,6 +6,9 @@ import argparse
 import numpy as np
 import polars as pl
 
+import itertools
+from collections import defaultdict
+
 """
 This script splits the input data into train and test with respect to the desired taxonomy group (e.g. phylum, class, family).
 
@@ -39,6 +42,8 @@ BAC_TSV = 'data_preparation/gtdb_files/bac120_metadata_r202.tsv'
 ARC_TSV = 'data_preparation/gtdb_files/ar122_metadata_r202.tsv'
 TEST_DATA_SIZE = 0.2 # percentage of the initial dataset
 RANDOM_SEED = 42
+
+NUM_SPLITS = 10
 
 # Set up logging
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
@@ -80,14 +85,6 @@ if __name__ == '__main__':
     # Dictionary with possible taxonomy levels and their indices in the gtdb table
     tax_levels = {"domain": 0, "phylum": 1, "class": 2, "order": 3, "family": 4, "genus": 5, "species": 6}
 
-    # Resulting filenames
-    train_data_filename = f"{args.output_dir}/{tax_level}/train_data_{tax_level}_tax_level"
-    train_annot_filename = f"{args.output_dir}/{tax_level}/train_annot_{tax_level}_tax_level"
-    train_taxa_filename = f"{args.output_dir}/{tax_level}/train_taxa_names_{tax_level}_tax_level"
-
-    test_data_filename = f"{args.output_dir}/{tax_level}/test_data_{tax_level}_tax_level"
-    test_annot_filename = f"{args.output_dir}/{tax_level}/test_annot_{tax_level}_tax_level"
-    test_taxa_filename = f"{args.output_dir}/{tax_level}/test_taxa_names_{tax_level}_tax_level"
 
     # Fix the random seed
     random.seed(RANDOM_SEED)
@@ -131,29 +128,120 @@ if __name__ == '__main__':
         all_groups = list(set(joined_df[tax_level].to_list()))
         print(f"Found {len(all_groups)} groups at {tax_level} taxonomy level from {len(joined_df)} data points")
 
-        # Randomly order the groups
-        random.shuffle(all_groups)
+
+        group_to_size_dict = defaultdict(int)
+
+        # Count samples per group
+        for group in all_groups:
+            group_to_size_dict[group] = len(joined_df.filter(pl.col(tax_level) == group))
+
+      #  print(f"group_to_size_dict = {group_to_size_dict}")    
+
+        total_samples = len(joined_df)
+        max_test_samples = len(joined_df) * TEST_DATA_SIZE
+
+        # Store unique splits using frozensets to avoid repetition
+        seen = set()
+        unique_splits = []
+
+        all_groups_set = set(all_groups)
+
+
+
+
+
+        unique_splits = set()
+        #unique_splits = []
+        final_splits = []
+
+        for _ in range(NUM_SPLITS):
+            shuffled_groups = all_groups[:]  # copy
+            random.shuffle(shuffled_groups)
+
+            test_groups = set()
+            test_size = 0
+            i = 0
+
+            # Fill the test set until we hit the test size threshold
+            while test_size < max_test_samples:# and i < len(shuffled_groups) - 1:
+                group = shuffled_groups[i]
+                test_groups.add(group)
+                test_size += group_to_size_dict[group]
+                i += 1
+
+            train_groups = set(shuffled_groups[i:])
+
+            # Make canonical form to avoid mirrored duplicates
+            canonical_split = frozenset([frozenset(train_groups), frozenset(test_groups)])
+            if canonical_split not in unique_splits:
+                unique_splits.add(canonical_split)
+                final_splits.append((list(train_groups), list(test_groups)))
+
+
+        # while len(unique_splits) < NUM_SPLITS:
+        #     # Random subset size (excluding empty and full)
+        #     r = random.randint(1, len(all_groups) - 1)
+        #     train_groups = random.sample(all_groups, r)
+        #     train_groups_set = frozenset(train_groups)
+
+        #     train_size = sum(group_to_size_dict[g] for g in train_groups)
+        #     if train_size > max_train_samples:
+        #         continue
+
+        #     test_groups_set = frozenset(all_groups_set - train_groups_set)
+
+        #     # To avoid duplicate splits (mirror cases)
+        #     canonical_split = frozenset([train_groups_set, test_groups_set])
+        #     if canonical_split in seen:
+        #         continue
+
+        #     seen.add(canonical_split)
+        #     unique_splits.append((list(train_groups_set), list(test_groups_set)))
+
+        print(f"Generated {len(final_splits)} random valid train/test group splits.")
+
+      #  print(f"unique_splits = {unique_splits}")
+
+        for i in range(len(final_splits)):
+            train_groups = final_splits[i][0]
+            test_groups = final_splits[i][1]
+
+
+        # # Randomly order the groups
+        # random.shuffle(all_groups)
         
-        # Split them into test and train
-        while testing_set_size < len(joined_df) * TEST_DATA_SIZE and len(all_groups) > 1:
-            group = all_groups.pop()
-            testing_families.add(group)
-            testing_set_size += len(joined_df.filter(pl.col(tax_level) == group))  
-        print(f"Found {len(all_groups)} training groups at {tax_level} taxonomy level, comprising {len(joined_df) - testing_set_size} data points")    
-        print(f"Found {len(testing_families)} testing groups at {tax_level} taxonomy level, comprising {testing_set_size} data points")
+        # # Split them into test and train
+        # while testing_set_size < len(joined_df) * TEST_DATA_SIZE and len(all_groups) > 1:
+        #     group = all_groups.pop()
+        #     testing_families.add(group)
+        #     testing_set_size += len(joined_df.filter(pl.col(tax_level) == group))  
+        # print(f"Found {len(all_groups)} training groups at {tax_level} taxonomy level, comprising {len(joined_df) - testing_set_size} data points")    
+        # print(f"Found {len(testing_families)} testing groups at {tax_level} taxonomy level, comprising {testing_set_size} data points")
 
-        # Save the train/test group lists to txt files
-        train_filename = f"{args.output_dir}/{tax_level}/train_groups_{tax_level}_tax_level"
-        test_filename = f"{args.output_dir}/{tax_level}/test_groups_{tax_level}_tax_level"
+        # print(f"testing_families = {testing_families}")
 
-        with open(train_filename, "w") as f:
-            f.write("\n".join(x for x in all_groups if x is not None))
-        with open(test_filename, "w") as f:
-            f.write("\n".join(x for x in testing_families if x is not None))    
 
-        # Save the train/test data files to txt files
-        save_selected_data_and_annot(joined_df, all_groups, tax_level, train_data_filename, train_annot_filename, train_taxa_filename)
-        save_selected_data_and_annot(joined_df, testing_families, tax_level, test_data_filename, test_annot_filename, test_taxa_filename)
+            # Save the train/test group lists to txt files
+            train_filename = f"{args.output_dir}/{tax_level}/train_groups_{tax_level}_tax_level_split_{i}"
+            test_filename = f"{args.output_dir}/{tax_level}/test_groups_{tax_level}_tax_level_split_{i}"
+
+            with open(train_filename, "w") as f:
+                f.write("\n".join(x for x in train_groups if x is not None))
+            with open(test_filename, "w") as f:
+                f.write("\n".join(x for x in test_groups if x is not None))    
+
+            # Resulting filenames
+            train_data_filename = f"{args.output_dir}/{tax_level}/train_data_{tax_level}_tax_level_split_{i}"
+            train_annot_filename = f"{args.output_dir}/{tax_level}/train_annot_{tax_level}_tax_level_split_{i}"
+            train_taxa_filename = f"{args.output_dir}/{tax_level}/train_taxa_names_{tax_level}_tax_level_split_{i}"
+
+            test_data_filename = f"{args.output_dir}/{tax_level}/test_data_{tax_level}_tax_level_split_{i}"
+            test_annot_filename = f"{args.output_dir}/{tax_level}/test_annot_{tax_level}_tax_level_split_{i}"
+            test_taxa_filename = f"{args.output_dir}/{tax_level}/test_taxa_names_{tax_level}_tax_level_split_{i}"
+      
+            # Save the train/test data files to txt files
+            save_selected_data_and_annot(joined_df, train_groups, tax_level, train_data_filename, train_annot_filename, train_taxa_filename)
+            save_selected_data_and_annot(joined_df, test_groups, tax_level, test_data_filename, test_annot_filename, test_taxa_filename)
 
         print("Finished!")
     else: # if "random" splitting

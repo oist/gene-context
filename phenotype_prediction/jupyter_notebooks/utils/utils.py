@@ -89,7 +89,9 @@ def read_aerob_data(X_filename, y_filename, taxa_filename, device):
 
     df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
 
+
     X_val = df_merged.drop(columns=['annotation', 'accession']).values
+
     
     X_val = torch.tensor(X_val)
     X_val = X_val.float().to(device)
