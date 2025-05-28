@@ -89,7 +89,6 @@ def read_aerob_data(X_filename, y_filename, taxa_filename, device):
 
     df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
 
-
     X_val = df_merged.drop(columns=['annotation', 'accession']).values
 
     
@@ -102,8 +101,11 @@ def read_aerob_data(X_filename, y_filename, taxa_filename, device):
     y_label = torch.tensor(y_label.values).to(device)
 
     y_label = y_label.float()
-    taxa_label = pd.read_csv(taxa_filename,sep="\t")
-    taxa_label = taxa_label.iloc[:, -1].tolist()
+    if taxa_filename is not None:
+        taxa_label = pd.read_csv(taxa_filename,sep="\t")
+        taxa_label = taxa_label.iloc[:, -1].tolist()
+    else:
+        taxa_label = None  
     return X_val, y_label, X_train_column_names[1:], taxa_label
 
 def read_aerob_data11(
