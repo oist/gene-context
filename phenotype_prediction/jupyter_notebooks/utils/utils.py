@@ -61,15 +61,23 @@ def read_diderm_data(X_filename, y_filename, taxa_filename, device):
     df_y_labels = df_y_labels.drop_duplicates(subset='accession', keep='first')
     df_merged = pd.merge(df_x_data, df_y_labels, on='accession', how='inner') 
 
-    taxa_label = pd.read_csv(taxa_filename,sep="\t")
-    taxa_label = taxa_label.drop_duplicates(subset='accession', keep='first')
+    if taxa_filename is not None:
 
-    df_merged = pd.merge(df_merged, taxa_label, on='accession', how='inner') 
+        taxa_label = pd.read_csv(taxa_filename,sep="\t")
+        taxa_label = taxa_label.drop_duplicates(subset='accession', keep='first')
 
-    taxa_label =  df_merged.iloc[:, -1].tolist()
-    df_merged = df_merged.drop(columns=df_merged.columns[-1])
+        df_merged = pd.merge(df_merged, taxa_label, on='accession', how='inner') 
 
-    X_val = df_merged.drop(columns=['annotation', 'accession']).values
+        taxa_label =  df_merged.iloc[:, -1].tolist()
+        df_merged = df_merged.drop(columns=df_merged.columns[-1])
+        X_val = df_merged.drop(columns=['annotation', 'accession']).values
+
+        
+    else:
+        taxa_label = None 
+        X_val = df_merged.drop(columns=['annotation', 'accession']).values
+
+
     X_val = torch.tensor(X_val)
     X_val = X_val.float().to(device)
     X_val_numpy = X_val.cpu().numpy()
@@ -305,7 +313,7 @@ def generate_colors_from_colormap(colormap_name, N):
    
    return listed_cmap, colors
 
-def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None, legend = False, colorbar = False):
+def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names = None,  colors = None, legend = False, colorbar = False, alpha=0.6, s = 10):
    scaler = MaxAbsScaler()
 
    # Fit and transform the data
@@ -332,7 +340,7 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names =
            # Generate colors based on the unique labels in y_train_val
            
            listed_cmap = ListedColormap(cm.nipy_spectral(np.linspace(0, 1, len(unique_ids))))
-       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=0.6, s = 10, label = category_names, cmap=listed_cmap)
+       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_val, alpha=alpha, s = s, label = category_names, cmap=listed_cmap)
 
        if category_names is not None:
            categ_name_dict = defaultdict(int)
@@ -351,7 +359,7 @@ def pca_run_and_plot(X_train_val, n_compon, y_train_val = None, category_names =
     #    else:
     #        plt.colorbar()    
    else:
-       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], alpha=0.6, s = 10)
+       scatter = plt.scatter(X_train_pca[:, 0], X_train_pca[:, 1], alpha=alpha, s = s)
    if colorbar is True:
        plt.colorbar()            
    plt.xlabel(f"PC 1; var = {round(explained_variance_ratio[0],2)}")
@@ -367,7 +375,7 @@ false_posit_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 false_negat_uniq = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 
-def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, colors = None, colorbar = False):
+def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, colors = None, colorbar = False, alpha=0.6, s = 10):
     scaler = MaxAbsScaler()
 
     # Fit and transform the data
@@ -390,9 +398,9 @@ def tsne_plot(X_train, perplexity, learning_rate, random_seed, y_train = None, c
 
     # Visualize the t-SNE output
     if y_train is not None:
-        sc = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=0.5, s = 10, cmap=listed_cmap)
+        sc = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_train, alpha=alpha, s = s, cmap=listed_cmap)
     else:
-        sc = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=0.5, s = 10)
+        sc = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], alpha=alpha, s = s)
     if colorbar is True and y_train is not None:
         plt.colorbar(sc)        
     plt.xlabel("tSNE1")
@@ -629,6 +637,54 @@ def train_xgboost(X_train, y_train, X_test, y_test, weights = None, model = None
     y_pred_test = model.predict(X_test.cpu())
 
     return  y_true_cv, y_pred_cv, y_pred_test, model
+
+
+from sklearn.preprocessing import LabelEncoder
+def xgboost_misture_of_experts(X_train, range_ids, sample_weights, X_test, num_classes = 2, temp_bound = 45):
+    
+    gating_model = XGBClassifier(
+        n_jobs=-1,
+        tree_method="hist",
+        objective="binary:logistic",   # Binary classification objective
+        eval_metric="logloss",         # Suitable for binary classification
+    )
+
+    gating_model.fit(X_train.cpu(), range_ids,sample_weight=sample_weights )  # Predicts soft assignments to experts
+
+    # --- 4. Get gating probabilities (soft weights for each expert)
+    gate_probs = gating_model.predict_proba(X_test.cpu())  # Shape: (n_samples, 3)
+    gate_preds = gating_model.predict(X_test.cpu()) 
+
+    y_train = y_train.squeeze()
+
+    # Define masks (all 1D)
+    low_mask  = y_train < temp_bound
+    high_mask = y_train >= temp_bound
+
+    # Apply masks correctly
+    X_low, y_low   = X_train[low_mask].cpu(), y_train[low_mask].cpu()
+    X_high, y_high = X_train[high_mask].cpu(), y_train[high_mask].cpu()
+
+    model_low  = XGBRegressor(n_estimators=100, max_depth=5, learning_rate=0.05).fit(X_low, y_low)
+    model_high =  XGBRegressor(n_estimators=100, max_depth=5, learning_rate=0.05).fit(X_high, y_high)
+
+    pred_low  = model_low.predict(X_test)
+    pred_high = model_high.predict(X_test)
+
+    # --- 5. Weighted combination of expert outputs
+
+    # Ensure correct mapping
+    id_low = 0#= np.where(le.classes_ == 'low')[0][0]
+    id_high =1#= np.where(le.classes_ == 'high')[0][0]
+
+    final_pred = (
+        gate_probs[:, id_low]  * pred_low +
+        gate_probs[:, id_high] * pred_high
+    )
+
+    return gate_probs, final_pred
+
+
 
 def xgboost_accuracy_contin(X_train, X_test, y_train, y_test, sorted_cog_idx, feat_step, feat_removal = False):
     rmse_test_arr = []
