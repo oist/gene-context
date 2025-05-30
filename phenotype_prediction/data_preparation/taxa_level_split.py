@@ -43,7 +43,7 @@ ARC_TSV = 'data_preparation/gtdb_files/ar122_metadata_r202.tsv'
 TEST_DATA_SIZE = 0.2 # percentage of the initial dataset
 RANDOM_SEED = 42
 
-NUM_SPLITS = 2
+NUM_SPLITS = 10
 
 # Set up logging
 logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
@@ -261,7 +261,7 @@ if __name__ == '__main__':
             input_df_annot = input_df_annot.rename({old_name: "annotation"})
 
             # Read input count table
-            input_df_counts = pl.read_csv(args.input_data_csv, separator=",")
+            input_df_counts = pl.read_csv(args.input_data_csv, separator="\t")
             print(f"Reading input count table with {len(input_df_counts)} rows...")        
 
             # Concatenate it with the gtdb df
