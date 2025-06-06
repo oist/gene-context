@@ -106,7 +106,7 @@ if __name__ == '__main__':
         gtdb_df = gtdb_df[['accession', tax_level]]
         
         # Read input csv with annotations
-        input_df_annot = pl.read_csv(args.input_annotation_csv, separator="\t")
+        input_df_annot = pl.read_csv(args.input_annotation_csv, separator=",")
         old_name = input_df_annot.columns[-1]
         input_df_annot = input_df_annot.rename({old_name: "annotation"})
 
@@ -256,12 +256,12 @@ if __name__ == '__main__':
     else: # if "random" splitting
         for i in range(NUM_SPLITS):
             # Read input csv with annotations
-            input_df_annot = pl.read_csv(args.input_annotation_csv, separator="\t")
+            input_df_annot = pl.read_csv(args.input_annotation_csv, separator=",")
             old_name = input_df_annot.columns[-1]
             input_df_annot = input_df_annot.rename({old_name: "annotation"})
 
             # Read input count table
-            input_df_counts = pl.read_csv(args.input_data_csv, separator="\t")
+            input_df_counts = pl.read_csv(args.input_data_csv, separator=",")
             print(f"Reading input count table with {len(input_df_counts)} rows...")        
 
             # Concatenate it with the gtdb df
